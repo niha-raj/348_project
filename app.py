@@ -217,6 +217,82 @@ def api_clear_tbr():
     except Exception as e:
         print(f"Error clearing TBR list: {str(e)}")
         return jsonify({"error": str(e)}), 500
+    
+@app.route('/api/book/<int:book_id>', methods=['DELETE'])
+def api_delete_book(book_id):
+    try:
+        conn = sqlite3.connect('tbrlist.db')
+        cursor = conn.cursor()
+        
+        # First, delete the entry from the TBRlist table
+        cursor.execute("DELETE FROM TBRlist WHERE book_id = ?", (book_id,))
+        
+        # Optionally, delete the book from the Books table if no other references exist
+        cursor.execute("DELETE FROM Books WHERE book_id = ?", (book_id,))
+        
+        # You can also delete the author and genre if they are no longer used
+        cursor.execute("""
+        DELETE FROM Authors WHERE author_id NOT IN (SELECT author_id FROM Books)
+        """)
+        cursor.execute("""
+        DELETE FROM Genres WHERE genre_id NOT IN (SELECT genre_id FROM Books)
+        """)
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"success": True, "message": f"Book with ID {book_id} deleted successfully."})
+    except Exception as e:
+        print(f"Error deleting book: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    
+@app.route('/api/book/<int:book_id>', methods=['PUT'])
+def api_update_book(book_id):
+    try:
+        data = request.json
+        conn = sqlite3.connect('tbrlist.db')
+        cursor = conn.cursor()
+        
+        # First, ensure the author exists or add a new one
+        cursor.execute("SELECT author_id FROM Authors WHERE name = ?", (data['author_name'],))
+        author = cursor.fetchone()
+        if author:
+            author_id = author[0]
+        else:
+            cursor.execute("INSERT INTO Authors (name) VALUES (?)", (data['author_name'],))
+            author_id = cursor.lastrowid
+        
+        # Next, ensure the genre exists or add a new one
+        cursor.execute("SELECT genre_id FROM Genres WHERE genre = ?", (data['genre'],))
+        genre_row = cursor.fetchone()
+        if genre_row:
+            genre_id = genre_row[0]
+        else:
+            cursor.execute("INSERT INTO Genres (genre) VALUES (?)", (data['genre'],))
+            genre_id = cursor.lastrowid
+        
+        # Update the book data
+        cursor.execute("""
+        UPDATE Books 
+        SET title = ?, author_id = ?, genre_id = ? 
+        WHERE book_id = ?
+        """, (data['title'], author_id, genre_id, book_id))
+        
+        # Update the priority in the TBR list
+        if 'priority' in data:
+            cursor.execute("""
+            UPDATE TBRlist 
+            SET priority = ? 
+            WHERE book_id = ?
+            """, (data['priority'], book_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"success": True, "message": f"Book with ID {book_id} updated successfully."})
+    except Exception as e:
+        print(f"Error updating book: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001, host='0.0.0.0')
