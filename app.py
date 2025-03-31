@@ -202,7 +202,6 @@ def api_clear_tbr():
         conn = sqlite3.connect('tbrlist.db')
         cursor = conn.cursor()
 
-        # Delete all entries from the TBRlist
         cursor.execute("DELETE FROM TBRlist")
         cursor.execute("DELETE FROM Books")
         cursor.execute("DELETE FROM Authors")
@@ -221,24 +220,16 @@ def api_delete_book(book_id):
     try:
         conn = sqlite3.connect('tbrlist.db')
         cursor = conn.cursor()
-        
-        # First, delete the entry from the TBRlist table
         cursor.execute("DELETE FROM TBRlist WHERE book_id = ?", (book_id,))
-        
-        # Optionally, delete the book from the Books table if no other references exist
         cursor.execute("DELETE FROM Books WHERE book_id = ?", (book_id,))
-        
-        # You can also delete the author and genre if they are no longer used
         cursor.execute("""
         DELETE FROM Authors WHERE author_id NOT IN (SELECT author_id FROM Books)
         """)
         cursor.execute("""
         DELETE FROM Genres WHERE genre_id NOT IN (SELECT genre_id FROM Books)
         """)
-        
         conn.commit()
-        conn.close()
-        
+        conn.close()  
         return jsonify({"success": True, "message": f"Book with ID {book_id} deleted successfully."})
     except Exception as e:
         print(f"Error deleting book: {str(e)}")
