@@ -3,7 +3,6 @@ from flask_cors import CORS
 
 import datetime
 import sqlite3
-import os
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}}, supports_credentials=True)
@@ -70,7 +69,6 @@ def get_tbr_list():
     JOIN Authors a ON b.author_id = a.author_id
     JOIN Genres g ON b.genre_id = g.genre_id
     JOIN [Reading Status] rs ON t.status_id = rs.status_id
-    WHERE (t.date_completed IS NULL OR t.date_completed IS NOT NULL)
     ORDER BY t.priority DESC, t.date_added DESC
     """)
     
@@ -117,7 +115,7 @@ def update_status(tbr_id, status_id):
     
     try:
         # If status is "Completed", add completion date
-        if status_id == 1:  # Assuming 3 is "Completed"
+        if status_id == 1:  # Assuming 1 is "Completed"
             today = datetime.datetime.now().strftime("%Y-%m-%d")
             cursor.execute("""
             UPDATE TBRlist SET status_id = ?, date_completed = ?
