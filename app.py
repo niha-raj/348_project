@@ -14,7 +14,6 @@ def add_book(title, author_name, genre, category=None, page_count=None, publicat
     cursor = conn.cursor()
     
     try:
-        # Ensure author exists or add new one
         cursor.execute("SELECT author_id FROM Authors WHERE name = ?", (author_name,))
         author = cursor.fetchone()
         if author:
@@ -23,26 +22,22 @@ def add_book(title, author_name, genre, category=None, page_count=None, publicat
             cursor.execute("INSERT INTO Authors (name) VALUES (?)", (author_name,))
             author_id = cursor.lastrowid
         
-        # Ensure genre exists or add new one
         cursor.execute("SELECT genre_id FROM Genres WHERE genre = ?", (genre,))
         genre_row = cursor.fetchone()
         if genre_row:
             genre_id = genre_row[0]
-            # Update category if provided
             if category:
                 cursor.execute("UPDATE Genres SET category = ? WHERE genre_id = ?", (category, genre_id))
         else:
             cursor.execute("INSERT INTO Genres (genre, category) VALUES (?, ?)", (genre, category))
             genre_id = cursor.lastrowid
         
-        # Add the book
         cursor.execute("""
         INSERT INTO Books (title, author_id, genre_id, page_count, publication_year) 
         VALUES (?, ?, ?, ?, ?)
         """, (title, author_id, genre_id, page_count, publication_year))
         book_id = cursor.lastrowid
         
-        # Add to TBR list
         today = datetime.datetime.now().strftime("%Y-%m-%d")
         cursor.execute("""
         INSERT INTO TBRlist (book_id, status_id, priority, date_added) 
@@ -65,15 +60,16 @@ def get_tbr_list():
     cursor = conn.cursor()
     
     cursor.execute("""
-    SELECT t.tbr_id, b.book_id, b.title, a.name as author, g.genre as genre, 
-           g.category as category, rs.status, t.priority, t.date_added, t.date_completed
-    FROM TBRlist t
-    JOIN Books b ON t.book_id = b.book_id
-    JOIN Authors a ON b.author_id = a.author_id
-    JOIN Genres g ON b.genre_id = g.genre_id
-    JOIN [Reading Status] rs ON t.status_id = rs.status_id
-    ORDER BY t.priority DESC, t.date_added DESC
-    """)
+        SELECT t.tbr_id, b.book_id, b.title, a.name as author, g.genre as genre, 
+       g.category as category, rs.status, t.priority, t.date_added, t.date_completed,
+       b.page_count, b.publication_year, b.rating
+        FROM TBRlist t
+        JOIN Books b ON t.book_id = b.book_id
+        JOIN Authors a ON b.author_id = a.author_id
+        JOIN Genres g ON b.genre_id = g.genre_id
+        JOIN [Reading Status] rs ON t.status_id = rs.status_id
+        ORDER BY t.priority DESC, t.date_added DESC
+        """)
     
     books = [dict(row) for row in cursor.fetchall()]
     conn.close()
@@ -149,7 +145,7 @@ def api_add_book():
             data['title'],
             data['author_name'],
             data['genre'],
-            data.get('category'),  # Add this line
+            data.get('category'),  
             data.get('page_count'),
             data.get('publication_year'),
             data.get('priority', 5),
@@ -159,6 +155,33 @@ def api_add_book():
     except Exception as e:
         print(f"Error in API: {str(e)}")
         return jsonify({"error": str(e)}), 500
+def update_rating(tbr_id, rating):
+    conn = sqlite3.connect('tbrlist.db')
+    cursor = conn.cursor()
+    
+    try:
+        # First, get the book_id from the tbr_id
+        cursor.execute("SELECT book_id FROM TBRlist WHERE tbr_id = ?", (tbr_id,))
+        result = cursor.fetchone()
+        if not result:
+            raise Exception(f"No TBR entry found with id {tbr_id}")
+            
+        book_id = result[0]
+        
+        # Update the rating in the Books table
+        cursor.execute("""
+        UPDATE Books SET rating = ?
+        WHERE book_id = ?
+        """, (rating, book_id))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating rating: {str(e)}")
+        raise e
+    finally:
+        conn.close()
 
 @app.route('/api/tbr', methods=['GET'])
 def api_get_tbr():
@@ -188,6 +211,15 @@ def api_get_statuses():
     try:
         statuses = get_statuses()
         return jsonify(statuses)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/rating', methods=['PUT'])
+def api_update_rating():
+    try:
+        data = request.json
+        success = update_rating(data['tbr_id'], data['rating'])
+        return jsonify({"success": success})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -270,11 +302,12 @@ def api_update_book(book_id):
             genre_id = cursor.lastrowid
         
         # Update the book data
+        # Update the book data
         cursor.execute("""
-        UPDATE Books 
-        SET title = ?, author_id = ?, genre_id = ? 
+        UPDATE Books    
+        SET title = ?, author_id = ?, genre_id = ?, page_count = ?, publication_year = ?
         WHERE book_id = ?
-        """, (data['title'], author_id, genre_id, book_id))
+        """, (data['title'], author_id, genre_id, data.get('page_count'), data.get('publication_year'), book_id))
         
         # Update the priority in the TBR list
         if 'priority' in data:

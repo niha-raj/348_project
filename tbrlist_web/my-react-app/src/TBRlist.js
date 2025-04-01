@@ -33,6 +33,16 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
 
   const API_URL = 'http://localhost:5001/api';
 
+  const fetchBooks = async () => {
+    try {
+      const booksRes = await axios.get(`${API_URL}/tbr`);
+      console.log('Books fetched:', booksRes.data); // Debug log
+      setBooks(booksRes.data);
+    } catch (error) {
+      console.error('Error fetching books:', error);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -41,6 +51,7 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
           axios.get(`${API_URL}/statuses`)
         ]);
 
+        console.log('Initial books fetch:', booksRes.data); // Debug log
         setBooks(booksRes.data);
         setStatuses(statusesRes.data);
         setLoading(false);
@@ -81,8 +92,7 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
       });
 
       if (response.data.success) {
-        const booksRes = await axios.get(`${API_URL}/tbr`);
-        setBooks(booksRes.data);
+        await fetchBooks();
         setNewBook({
           title: '',
           author_name: '',
@@ -103,10 +113,41 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
   const handleStatusChange = async (tbrId, statusId) => {
     try {
       await axios.put(`${API_URL}/status`, { tbr_id: tbrId, status_id: statusId });
-      const booksRes = await axios.get(`${API_URL}/tbr`);
-      setBooks(booksRes.data);
+      await fetchBooks();
     } catch (error) {
       console.error('Error updating status:', error);
+    }
+  };
+
+  const handleRatingChange = async (tbrId, newRating) => {
+    try {
+      console.log(`Updating rating for book ${tbrId} to ${newRating}`); // Debug log
+      
+      const response = await axios.put(`${API_URL}/rating`, { 
+        tbr_id: tbrId, 
+        rating: newRating 
+      });
+      
+      if (response.data.success) {
+        console.log('Rating update successful, refreshing books'); // Debug log
+        
+        // First update the local state for immediate UI feedback
+        setBooks(prevBooks => 
+          prevBooks.map(book => 
+            book.tbr_id === tbrId 
+              ? { ...book, rating: newRating } 
+              : book
+          )
+        );
+        
+        // Then fetch fresh data from the server
+        await fetchBooks();
+      } else {
+        console.error('Failed to update rating:', response.data.message);
+      }
+    } catch (error) {
+      console.error('Error updating rating:', error);
+      alert('Failed to update book rating.');
     }
   };
 
@@ -134,8 +175,7 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
       const response = await axios.delete(`${API_URL}/book/${bookToDelete.book_id}`);
       
       if (response.data.success) {
-        const booksRes = await axios.get(`${API_URL}/tbr`);
-        setBooks(booksRes.data);
+        await fetchBooks();
         setIsDeleting(false);
         setBookToDelete(null);
       }
@@ -164,8 +204,7 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
       });
 
       if (response.data.success) {
-        const booksRes = await axios.get(`${API_URL}/tbr`);
-        setBooks(booksRes.data);
+        await fetchBooks();
         setIsEditing(false);
         setBookToEdit(null);
       }
@@ -233,6 +272,7 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
               onStatusChange={handleStatusChange}
               onEditClick={handleEditClick}
               onDeleteClick={handleDeleteClick}
+              onRatingChange={handleRatingChange}
             />
           ))
         )}

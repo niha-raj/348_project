@@ -1,6 +1,54 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
-function BookCard({ book, statuses, onStatusChange, onEditClick, onDeleteClick }) {
+// For debugging purposes
+const logRatingData = (message, data) => {
+  console.log(`${message}:`, data);
+};
+
+function StarRating({ initialRating = 0, onRatingChange }) {
+  const [hoveredRating, setHoveredRating] = useState(0);
+  
+  // For debugging
+  useEffect(() => {
+    logRatingData('StarRating receiving initialRating', initialRating);
+  }, [initialRating]);
+  
+  const handleRatingClick = (newRating) => {
+    logRatingData('Clicked rating', newRating);
+    if (onRatingChange) {
+      onRatingChange(newRating);
+    }
+  };
+  
+  return (
+    <div className="star-rating">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <span
+          key={star}
+          className={`star ${star <= (hoveredRating || initialRating) ? 'filled' : 'empty'}`}
+          onClick={() => handleRatingClick(star)}
+          onMouseEnter={() => setHoveredRating(star)}
+          onMouseLeave={() => setHoveredRating(0)}
+          style={{
+            cursor: 'pointer',
+            color: star <= (hoveredRating || initialRating) ? '#FFD700' : '#CCCCCC',
+            fontSize: '24px',
+            marginRight: '2px'
+          }}
+        >
+          ★
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function BookCard({ book, statuses, onStatusChange, onEditClick, onDeleteClick, onRatingChange }) {
+  // For debugging
+  useEffect(() => {
+    logRatingData('BookCard received book with rating', book.rating);
+  }, [book.rating]);
+  
   // Function to determine priority label and color
   const getPriorityInfo = (priority) => {
     if (!priority) return { label: 'Low', color: '#AAAAAA', borderRadius: '12px' };
@@ -21,6 +69,14 @@ function BookCard({ book, statuses, onStatusChange, onEditClick, onDeleteClick }
       default: return '#BDBDBD';
     }
   };
+  
+  // Handle rating change
+  const handleRatingChange = (newRating) => {
+    logRatingData(`Rating change for book ${book.tbr_id}`, newRating);
+    if (onRatingChange) {
+      onRatingChange(book.tbr_id, newRating);
+    }
+  };
 
   return (
     <div className={`book-card ${book.status === 'Complete' ? 'completed' : ''}`}>
@@ -39,6 +95,17 @@ function BookCard({ book, statuses, onStatusChange, onEditClick, onDeleteClick }
       <div className="book-details">
         <p className="book-author">by {book.author}</p>
         <p className="book-genre">{book.genre}</p>
+        
+        {/* Star Rating Component */}
+        <div className="book-rating">
+          <StarRating 
+            initialRating={Number(book.rating) || 0} 
+            onRatingChange={handleRatingChange} 
+          />
+          <span className="rating-text">
+            {book.rating ? `${book.rating}/5` : ''}
+          </span>
+        </div>
       </div>
       
       <div className="book-actions">
