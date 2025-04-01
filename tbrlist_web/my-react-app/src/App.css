@@ -211,6 +211,144 @@
   background-color: var(--paper);
 }
 
+/* Book Card - Additional Classes */
+
+/* Card for completed books */
+.book-card.completed {
+  opacity: 0.8;
+  background-color: var(--background-alt);
+}
+
+/* Status indicator at the top of card */
+.book-status-indicator {
+  height: 4px;
+  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-top-left-radius: var(--radius);
+  border-top-right-radius: var(--radius);
+}
+
+/* Book header contains title and priority badge */
+.book-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--spacing-sm);
+  padding-top: var(--spacing-xs);
+}
+
+/* Priority badge styling */
+.priority-badge {
+  padding: 3px var(--spacing-sm);
+  border-radius: 12px;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: white;
+  text-align: center;
+  min-width: 60px;
+}
+
+/* Book details container */
+.book-details {
+  margin-bottom: var(--spacing-md);
+}
+
+/* Status selector container */
+.status-selector {
+  flex: 1;
+}
+
+.status-selector select {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-dark);
+  font-size: var(--font-size-sm);
+  color: var(--text-on-primary);
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+  transition: var(--transition);
+}
+
+.status-selector select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(83, 32, 32, 0.25);
+}
+
+/* Card buttons container */
+.card-buttons {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+/* Edit button */
+.edit-btn {
+  background-color: var(--primary);
+  color: var(--text-on-primary);
+  border: none;
+  border-radius: var(--radius);
+  padding: 6px var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.edit-btn:hover {
+  background-color: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+.status-selector select {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-dark);
+  font-size: var(--font-size-sm);
+  color: var(--text-on-primary);
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+  transition: var(--transition);
+}
+
+.status-selector select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+}
+
+/* Card buttons container */
+.card-buttons {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+/* Edit button */
+.edit-btn {
+  background-color: var(--primary);
+  color: var(--text-on-primary);
+  border: none;
+  border-radius: var(--radius);
+  padding: 6px var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.edit-btn:hover {
+  background-color: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+
 /* TBR List */
 .book-list {
   display: grid;
@@ -618,6 +756,70 @@ textarea:focus {
   color: var(--text);
 }
 
+/* Category toggle styling */
+.category-toggle {
+  display: flex;
+  gap: var(--spacing-sm);
+  width: 100%;
+  margin-top: var(--spacing-xs);
+}
+
+.category-option {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-md);
+  background-color: var(--background-alt);
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.category-option:hover {
+  background-color: var(--primary-light);
+  border-color: var(--primary);
+}
+
+.category-option.active {
+  background-color: var(--primary-light);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary);
+  color: var(--primary-dark);
+  font-weight: 600;
+}
+
+.category-icon {
+  font-size: var(--font-size-2xl);
+  margin-left: 0px;
+  margin-bottom: var(--spacing-xs);
+}
+
+.category-label {
+  font-size: var(--font-size);
+  font-weight: 500;
+}
+
+/* Responsive adjustments */
+@media (max-width: 576px) {
+  .category-toggle {
+    flex-direction: column;
+  }
+  
+  .category-option {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+  }
+  
+  .category-icon {
+    margin-bottom: 0;
+  }
+}
+
 /* Delete button in modal */
 .modal-footer .delete-btn {
   background-color: var(--error-light);
@@ -628,6 +830,7 @@ textarea:focus {
   font-weight: 500;
   cursor: pointer;
   transition: var(--transition);
+  text-align: left;
 }
 
 .modal-footer .delete-btn:hover {
@@ -715,7 +918,7 @@ textarea:focus {
   padding-bottom: var(--spacing-sm);
   border-bottom: 1px solid var(--border);
 }
-/* Add these styles to your existing CSS file */
+
 
 /* Stats component empty state */
 .stats-empty {
@@ -782,6 +985,83 @@ textarea:focus {
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text);
+}
+
+/* Category chart styles */
+.category1-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing);
+  margin-top: var(--spacing);
+}
+
+.category1-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-sm);
+}
+
+.category1-label {
+  width: 100px;
+  text-align: right;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.category1-bar-container {
+  flex: 1;
+  height: 12px;
+  background-color: var(--background-alt);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.category1-bar {
+  height: 100%;
+  border-radius: 10px;
+  transition: var(--transition);
+}
+
+.category1-count {
+  min-width: 30px;
+  text-align: right;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.category1-percentage {
+  min-width: 40px;
+  text-align: right;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--text-light);
+}
+
+/* Fix for stats container - to avoid nested containers */
+.stats-container .stats-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--spacing-md);
+}
+
+/* Responsive adjustments for category chart */
+@media (max-width: 768px) {
+  .category-label {
+    width: 80px;
+    font-size: var(--font-size-xs);
+  }
+  
+  .category-count {
+    font-size: var(--font-size-xs);
+  }
+  
+  .category-percentage {
+    font-size: var(--font-size-xs);
+  }
 }
 
 /* Genres list */

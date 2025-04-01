@@ -5,6 +5,7 @@ function Stats({ books }) {
     total: 0,
     byStatus: {},
     byGenre: {},
+    byCategory: { Fiction: 0, Nonfiction: 0 },
     completionRate: 0,
     averagePriority: 0
   });
@@ -15,6 +16,7 @@ function Stats({ books }) {
     // Calculate stats
     const byStatus = {};
     const byGenre = {};
+    const byCategory = { Fiction: 0, Nonfiction: 0 };
     let completed = 0;
     let totalPriority = 0;
 
@@ -24,6 +26,18 @@ function Stats({ books }) {
       
       // Count by genre
       byGenre[book.genre] = (byGenre[book.genre] || 0) + 1;
+      
+      // Count by category (Fiction/Nonfiction)
+      const category = book.category || 'Uncategorized';
+      const normalizedCategory = category.toLowerCase();
+
+    if (normalizedCategory === 'fiction') {
+      byCategory['Fiction'] = (byCategory['Fiction'] || 0) + 1;
+    } else if (normalizedCategory === 'nonfiction') {
+      byCategory['Nonfiction'] = (byCategory['Nonfiction'] || 0) + 1;
+    } else {
+      byCategory['Uncategorized'] = (byCategory['Uncategorized'] || 0) + 1;
+    }
       
       // Count completed books
       if (book.status === 'Complete') {
@@ -38,6 +52,7 @@ function Stats({ books }) {
       total: books.length,
       byStatus,
       byGenre,
+      byCategory,
       completionRate: Math.round((completed / books.length) * 100),
       averagePriority: Math.round((totalPriority / books.length) * 10) / 10
     });
@@ -69,6 +84,31 @@ function Stats({ books }) {
               ></div>
             </div>
             <div className="completion-text">{stats.completionRate}% Complete</div>
+          </div>
+        </div>
+        
+        <div className="stat-card">
+          <h3>Fiction vs. Nonfiction</h3>
+          <div className="category1-chart">
+            {Object.entries(stats.byCategory).map(([category, count]) => (
+              <div key={category} className="category1-item">
+                <div className="category1-label">{category}</div>
+                <div className="category1-bar-container">
+                  <div 
+                    className="category1-bar" 
+                    style={{
+                      width: `${(count / stats.total) * 100}%`,
+                      backgroundColor: category === 'Fiction' ? '#FFB74D' : 
+                                     category === 'Nonfiction' ? '#4DB6AC' : '#BDBDBD'
+                    }}
+                  ></div>
+                </div>
+                <div className="category1-count">{count}</div>
+                <div className="category1-percentage">
+                  {Math.round((count / stats.total) * 100)}%
+                </div>
+              </div>
+            ))}
           </div>
         </div>
         
@@ -119,7 +159,7 @@ function Stats({ books }) {
             <div className="scale-bar">
               <div 
                 className="scale-indicator" 
-                style={{left: `${(stats.averagePriority / 10) * 100}%`}}
+                style={{right: `${(stats.averagePriority / 10) * 100}%`}}
               ></div>
             </div>
             <div className="scale-label">High</div>

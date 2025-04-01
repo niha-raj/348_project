@@ -3,11 +3,11 @@ import React from 'react';
 function BookCard({ book, statuses, onStatusChange, onEditClick, onDeleteClick }) {
   // Function to determine priority label and color
   const getPriorityInfo = (priority) => {
-    if (!priority) return { label: 'Low', color: '#AAAAAA' };
+    if (!priority) return { label: 'Low', color: '#AAAAAA', borderRadius: '12px' };
     
-    if (priority >= 8) return { label: 'High', color: '#E57373' };
-    if (priority >= 5) return { label: 'Medium', color: '#FFD54F' };
-    return { label: 'Low', color: '#81C784' };
+    if (priority <= 4) return { label: 'High', color: '#E57373', borderRadius: '12px' };
+    if (priority <= 7) return { label: 'Medium', color: '#FFD54F', borderRadius: '12px' };
+    return { label: 'Low', color: '#81C784', borderRadius: '12px' };
   };
 
   const priorityInfo = getPriorityInfo(book.priority);
@@ -16,8 +16,8 @@ function BookCard({ book, statuses, onStatusChange, onEditClick, onDeleteClick }
   const getStatusColor = (status) => {
     switch(status) {
       case 'Not Started': return '#BDBDBD';
-      case 'In Progress': return '#64B5F6';
-      case 'Complete': return '#81C784';
+      case 'In-Progress': return '#81C784';
+      case 'Complete': return '#05472A';
       default: return '#BDBDBD';
     }
   };

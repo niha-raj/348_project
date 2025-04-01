@@ -10,6 +10,9 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
     title: '',
     author_name: '',
     genre: '',
+    category: 'Fiction', // Default category set to fiction
+    publication_year: '',
+    page_count: '',
     priority: 5
   });
   const [isDeleting, setIsDeleting] = useState(false);
@@ -20,6 +23,9 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
     title: '',
     author_name: '',
     genre: '',
+    category: 'Fiction', // Default category set to fiction
+    publication_year: '',
+    page_count: '',
     priority: 5
   });
   const [filter, setFilter] = useState('all');
@@ -69,12 +75,23 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
         ...newBook,
         priority: parseInt(newBook.priority),
         status_id: 3,
+        category: newBook.category || 'Fiction', // Ensure category is sent
+        publication_year: newBook.publication_year ? parseInt(newBook.publication_year) : null,
+        page_count: newBook.page_count ? parseInt(newBook.page_count) : null
       });
 
       if (response.data.success) {
         const booksRes = await axios.get(`${API_URL}/tbr`);
         setBooks(booksRes.data);
-        setNewBook({ title: '', author_name: '', genre: '', priority: 5 });
+        setNewBook({
+          title: '',
+          author_name: '',
+          genre: '',
+          category: 'Fiction',
+          publication_year: '',
+          page_count: '',
+          priority: 5
+        });
         setIsModalOpen(false);
       }
     } catch (error) {
@@ -104,6 +121,9 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
       title: book.title,
       author_name: book.author,
       genre: book.genre,
+      category: book.category || 'Fiction', // Get current category or default to fiction
+      publication_year: book.publication_year || '',
+      page_count: book.page_count || '',
       priority: book.priority || 5
     });
     setIsEditing(true);
@@ -137,6 +157,9 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
         title: editFormData.title,
         author_name: editFormData.author_name,
         genre: editFormData.genre,
+        category: editFormData.category || 'Fiction', // Include category
+        publication_year: editFormData.publication_year ? parseInt(editFormData.publication_year) : null,
+        page_count: editFormData.page_count ? parseInt(editFormData.page_count) : null,
         priority: parseInt(editFormData.priority),
       });
 

@@ -8,7 +8,7 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}}, supports_credentials=True)
 
 # Database functions
-def add_book(title, author_name, genre, page_count=None, publication_year=None, priority=5, status_id=3):
+def add_book(title, author_name, genre, category=None, page_count=None, publication_year=None, priority=5, status_id=3):
     print(f"Adding book: {title} by {author_name}, genre: {genre}")
     conn = sqlite3.connect('tbrlist.db')
     cursor = conn.cursor()
@@ -28,8 +28,11 @@ def add_book(title, author_name, genre, page_count=None, publication_year=None, 
         genre_row = cursor.fetchone()
         if genre_row:
             genre_id = genre_row[0]
+            # Update category if provided
+            if category:
+                cursor.execute("UPDATE Genres SET category = ? WHERE genre_id = ?", (category, genre_id))
         else:
-            cursor.execute("INSERT INTO Genres (genre) VALUES (?)", (genre,))
+            cursor.execute("INSERT INTO Genres (genre, category) VALUES (?, ?)", (genre, category))
             genre_id = cursor.lastrowid
         
         # Add the book
@@ -58,12 +61,12 @@ def add_book(title, author_name, genre, page_count=None, publication_year=None, 
 
 def get_tbr_list():
     conn = sqlite3.connect('tbrlist.db')
-    conn.row_factory = sqlite3.Row  # This enables column access by name
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
     cursor.execute("""
     SELECT t.tbr_id, b.book_id, b.title, a.name as author, g.genre as genre, 
-           rs.status, t.priority, t.date_added, t.date_completed
+           g.category as category, rs.status, t.priority, t.date_added, t.date_completed
     FROM TBRlist t
     JOIN Books b ON t.book_id = b.book_id
     JOIN Authors a ON b.author_id = a.author_id
@@ -146,6 +149,7 @@ def api_add_book():
             data['title'],
             data['author_name'],
             data['genre'],
+            data.get('category'),  # Add this line
             data.get('page_count'),
             data.get('publication_year'),
             data.get('priority', 5),
@@ -256,8 +260,13 @@ def api_update_book(book_id):
         genre_row = cursor.fetchone()
         if genre_row:
             genre_id = genre_row[0]
+            # Update category if provided
+            if 'category' in data:
+                cursor.execute("UPDATE Genres SET category = ? WHERE genre_id = ?", 
+                              (data['category'], genre_id))
         else:
-            cursor.execute("INSERT INTO Genres (genre) VALUES (?)", (data['genre'],))
+            cursor.execute("INSERT INTO Genres (genre, category) VALUES (?, ?)", 
+                          (data['genre'], data.get('category')))
             genre_id = cursor.lastrowid
         
         # Update the book data
