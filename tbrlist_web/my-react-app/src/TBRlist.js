@@ -30,6 +30,9 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
   });
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('priority');
+  
+  // Get card layout from settings instead of local state
+  const [cardLayout, setCardLayout] = useState('grid');
 
   const API_URL = 'http://localhost:5001/api';
 
@@ -40,6 +43,28 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
       setBooks(booksRes.data);
     } catch (error) {
       console.error('Error fetching books:', error);
+    }
+  };
+
+  // Fetch settings to get the layout preference
+  const fetchSettings = async () => {
+    try {
+      const response = await fetch(`${API_URL}/settings`);
+      const data = await response.json();
+      
+      if (response.ok) {
+        // Update card layout from settings
+        setCardLayout(data.card_layout || 'grid');
+        
+        // Optionally set default sort from settings too
+        if (data.default_sort) {
+          setSort(data.default_sort);
+        }
+      } else {
+        console.error('Error fetching settings:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching settings:', error);
     }
   };
 
@@ -54,6 +79,10 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
         console.log('Initial books fetch:', booksRes.data); // Debug log
         setBooks(booksRes.data);
         setStatuses(statusesRes.data);
+        
+        // Fetch settings to get layout preference
+        await fetchSettings();
+        
         setLoading(false);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -232,32 +261,34 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
 
   return (
     <div className="tbr-list-container">
-      {/* Filters and Sorting */}
+      {/* Filters and Sorting Controls - Removed layout control */}
       <div className="list-controls">
-        <div className="filter-container">
-          <label>Filter by Status:</label>
-          <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-            <option value="all">All Books</option>
-            {statuses.map(status => (
-              <option key={status.status_id} value={status.status}>
-                {status.status}
-              </option>
-            ))}
-          </select>
-        </div>
-        
-        <div className="sort-container">
-          <label>Sort by:</label>
-          <select value={sort} onChange={(e) => setSort(e.target.value)}>
-            <option value="priority">Priority</option>
-            <option value="title">Title</option>
-            <option value="author">Author</option>
-          </select>
+        <div className="left-controls">
+          <div className="filter-container">
+            <label>Filter by Status:</label>
+            <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+              <option value="all">All Books</option>
+              {statuses.map(status => (
+                <option key={status.status_id} value={status.status}>
+                  {status.status}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="sort-container">
+            <label>Sort by:</label>
+            <select value={sort} onChange={(e) => setSort(e.target.value)}>
+              <option value="priority">Priority</option>
+              <option value="title">Title</option>
+              <option value="author">Author</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Book List */}
-      <div className="book-list-grid">
+      {/* Book List - with dynamic class based on layout */}
+      <div className={`book-list-${cardLayout}`}>
         {sortedBooks.length === 0 ? (
           <div className="empty-list">
             <p>No books in your reading list yet!</p>
@@ -267,7 +298,8 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
           sortedBooks.map((book) => (
             <BookCard 
               key={book.tbr_id} 
-              book={book} 
+              book={book}
+              layout={cardLayout} // Pass layout to BookCard
               statuses={statuses}
               onStatusChange={handleStatusChange}
               onEditClick={handleEditClick}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 function Settings() {
   const [theme, setTheme] = useState('light');
@@ -7,12 +7,161 @@ function Settings() {
   const [defaultSort, setDefaultSort] = useState('priority');
   const [notifications, setNotifications] = useState(true);
   const [autoBackup, setAutoBackup] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [saveMessage, setSaveMessage] = useState('');
   
-  // This is a placeholder for settings that would actually update app state
-  const saveSettings = () => {
-    alert('Settings saved! Your preferences have been updated.');
-    // In a real app: updateAppSettings({ theme, cardLayout, showPriority, defaultSort, notifications, autoBackup });
+  // Fetch settings when component mounts
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  useEffect(() => {
+    // Remove any existing theme classes
+    document.body.classList.remove('theme-light', 'theme-dark', 'theme-sepia');
+    // Add the selected theme class
+    document.body.classList.add(`theme-${theme}`);
+  }, [theme]);  
+  
+  const fetchSettings = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('http://localhost:5001/api/settings');
+      const data = await response.json();
+      
+      if (response.ok) {
+        setTheme(data.theme || 'light');
+        setCardLayout(data.card_layout || 'grid');
+        setShowPriority(Boolean(data.show_priority));
+        setDefaultSort(data.default_sort || 'priority');
+        setNotifications(Boolean(data.notifications));
+        setAutoBackup(Boolean(data.auto_backup));
+      } else {
+        console.error('Error fetching settings:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const saveSettings = async () => {
+    try {
+      const response = await fetch('http://localhost:5001/api/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          theme,
+          card_layout: cardLayout, // Make sure to use the correct API field name
+          show_priority: showPriority,
+          default_sort: defaultSort,
+          notifications,
+          auto_backup: autoBackup
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setSaveMessage('Settings saved successfully! Layout changes will apply on your next visit to the book list.');
+        setTimeout(() => setSaveMessage(''), 4000);
+      } else {
+        console.error('Error saving settings:', data.error);
+        setSaveMessage('Error saving settings. Please try again.');
+        setTimeout(() => setSaveMessage(''), 3000);
+      }
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      setSaveMessage('Error saving settings. Please try again.');
+      setTimeout(() => setSaveMessage(''), 3000);
+    }
+  };
+
+  const exportReadingList = async () => {
+    try {
+      const response = await fetch('http://localhost:5001/api/export');
+      
+      if (response.ok) {
+        // Get the text content directly
+        const textContent = await response.text();
+        
+        // Create a downloadable file
+        const blob = new Blob([textContent], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        
+        // Create a temporary anchor element to download the file
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `reading-journal-${new Date().toISOString().split('T')[0]}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        
+        // Clean up
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } else {
+        // Try to get the error message from JSON
+        try {
+          const errorData = await response.json();
+          console.error('Error exporting data:', errorData.error);
+          alert('Error exporting data. Please try again.');
+        } catch {
+          console.error('Error exporting data:', response.status);
+          alert('Error exporting data. Please try again.');
+        }
+      }
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      alert('Error exporting data. Please try again.');
+    }
+  };
+  
+  const importReadingList = () => {
+    // Create a file input element
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt'; // Accept .txt files
+    
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        try {
+          // Confirm before importing
+          if (window.confirm('Importing will replace your current reading list. Continue?')) {
+            // Create a FormData object to send the file
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const response = await fetch('http://localhost:5001/api/import', {
+              method: 'POST',
+              body: formData // Send the file as FormData
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+              alert(`Import successful! ${data.details.new_books_added} new books added, ${data.details.updates_made} books updated.`);
+              window.location.reload();
+            } else {
+              console.error('Error importing data:', data.error);
+              alert('Error importing data. Please try again.');
+            }
+          }
+        } catch (error) {
+          console.error('Error reading file:', error);
+          alert('Error reading file. Please try again.');
+        }
+      }
+    };
+    
+    input.click();
+  };
+
+  if (isLoading) {
+    return <div className="loading">Loading settings...</div>;
+  }
 
   return (
     <div className="notebook-page">
@@ -20,6 +169,12 @@ function Settings() {
         <h2 className="page-title">Settings</h2>
         <p className="page-description">Customize your reading journal experience</p>
       </div>
+
+      {saveMessage && (
+        <div className="save-message success">
+          {saveMessage}
+        </div>
+      )}
 
       <div className="settings-grid">
         {/* Appearance Section */}
@@ -66,6 +221,7 @@ function Settings() {
                   <option value="list">List View</option>
                 </select>
               </div>
+              <p className="setting-hint">This setting controls how books are displayed throughout the app</p>
             </div>
             
             <div className="divider"></div>
@@ -182,7 +338,7 @@ function Settings() {
             </p>
             
             <div className="settings-actions-row">
-              <button className="settings-btn export-btn">
+              <button className="settings-btn export-btn" onClick={exportReadingList}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="7 10 12 15 17 10"></polyline>
@@ -190,7 +346,7 @@ function Settings() {
                 </svg>
                 Export Reading List
               </button>
-              <button className="settings-btn import-btn">
+              <button className="settings-btn import-btn" onClick={importReadingList}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="17 8 12 3 7 8"></polyline>
@@ -217,6 +373,16 @@ function Settings() {
           Save Settings
         </button>
       </div>
+
+      {/* Add a small CSS style for the setting hint */}
+      <style jsx>{`
+        .setting-hint {
+          font-size: var(--font-size-sm);
+          color: var(--text-light);
+          margin-top: var(--spacing-xs);
+          font-style: italic;
+        }
+      `}</style>
     </div>
   );
 }

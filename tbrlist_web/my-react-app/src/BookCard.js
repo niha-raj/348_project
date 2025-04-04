@@ -43,7 +43,7 @@ function StarRating({ initialRating = 0, onRatingChange }) {
   );
 }
 
-function BookCard({ book, statuses, onStatusChange, onEditClick, onDeleteClick, onRatingChange }) {
+function BookCard({ book, layout = 'grid', statuses, onStatusChange, onEditClick, onDeleteClick, onRatingChange }) {
   // For debugging
   useEffect(() => {
     logRatingData('BookCard received book with rating', book.rating);
@@ -78,63 +78,138 @@ function BookCard({ book, statuses, onStatusChange, onEditClick, onDeleteClick, 
     }
   };
 
-  return (
-    <div className={`book-card ${book.status === 'Complete' ? 'completed' : ''}`}>
-      <div className="book-status-indicator" style={{ backgroundColor: getStatusColor(book.status) }}></div>
-      
-      <div className="book-header">
-        <h3 className="book-title">{book.title}</h3>
-        <div 
-          className="priority-badge"
-          style={{ backgroundColor: priorityInfo.color }}
-        >
-          {priorityInfo.label}
-        </div>
-      </div>
-      
-      <div className="book-details">
-        <p className="book-author">by {book.author}</p>
-        <p className="book-genre">{book.genre}</p>
+  // Choose the appropriate class based on layout
+  const cardClassName = layout === 'list' 
+    ? `book-card-list ${book.status === 'Complete' ? 'completed' : ''}` 
+    : `book-card ${book.status === 'Complete' ? 'completed' : ''}`;
+
+  // Grid layout (original layout)
+  if (layout === 'grid') {
+    return (
+      <div className={cardClassName}>
+        <div className="book-status-indicator" style={{ backgroundColor: getStatusColor(book.status) }}></div>
         
-        {/* Star Rating Component */}
-        <div className="book-rating">
-          <StarRating 
-            initialRating={Number(book.rating) || 0} 
-            onRatingChange={handleRatingChange} 
-          />
-          <span className="rating-text">
-            {book.rating ? `${book.rating}/5` : ''}
-          </span>
-        </div>
-      </div>
-      
-      <div className="book-actions">
-        <div className="status-selector">
-          <select
-            value={book.status}
-            onChange={(e) => {
-              const selectedStatus = statuses.find(s => s.status === e.target.value);
-              if (selectedStatus) {
-                onStatusChange(book.tbr_id, selectedStatus.status_id);
-              }
-            }}
-            style={{ backgroundColor: getStatusColor(book.status) }}
+        <div className="book-header">
+          <h3 className="book-title">{book.title}</h3>
+          <div 
+            className="priority-badge"
+            style={{ backgroundColor: priorityInfo.color }}
           >
-            {statuses.map(status => (
-              <option key={status.status_id} value={status.status}>
-                {status.status}
-              </option>
-            ))}
-          </select>
+            {priorityInfo.label}
+          </div>
         </div>
         
-        <div className="card-buttons">
-          <button className="edit-btn" onClick={() => onEditClick(book)}>
-            Edit
-          </button>
-          <button className="delete-btn" onClick={() => onDeleteClick(book)}>
-            Delete
-          </button>
+        <div className="book-details">
+          <p className="book-author">by {book.author}</p>
+          <p className="book-genre">{book.genre}</p>
+          
+          {/* Star Rating Component */}
+          <div className="book-rating">
+            <StarRating 
+              initialRating={Number(book.rating) || 0} 
+              onRatingChange={handleRatingChange} 
+            />
+            <span className="rating-text">
+              {book.rating ? `${book.rating}/5` : ''}
+            </span>
+          </div>
+        </div>
+        
+        <div className="book-actions">
+          <div className="status-selector">
+            <select
+              value={book.status}
+              onChange={(e) => {
+                const selectedStatus = statuses.find(s => s.status === e.target.value);
+                if (selectedStatus) {
+                  onStatusChange(book.tbr_id, selectedStatus.status_id);
+                }
+              }}
+              style={{ backgroundColor: getStatusColor(book.status) }}
+            >
+              {statuses.map(status => (
+                <option key={status.status_id} value={status.status}>
+                  {status.status}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="card-buttons">
+            <button className="edit-btn" onClick={() => onEditClick(book)}>
+              Edit
+            </button>
+            <button className="delete-btn" onClick={() => onDeleteClick(book)}>
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // List layout (new layout)
+  return (
+    <div className={cardClassName}>
+      <div className="book-status-indicator-list" style={{ backgroundColor: getStatusColor(book.status) }}></div>
+      
+      <div className="book-content-list">
+        <div className="book-header-list">
+          <h3 className="book-title">{book.title}</h3>
+          <p className="book-author">by {book.author}</p>
+          <p className="book-genre">{book.genre}</p>
+          
+          <div className="book-metadata">
+            {book.publication_year && <span className="book-year">{book.publication_year}</span>}
+            {book.page_count && <span className="book-pages">{book.page_count} pages</span>}
+          </div>
+        </div>
+        
+        <div className="book-controls-list">
+          <div 
+            className="priority-badge-list"
+            style={{ backgroundColor: priorityInfo.color }}
+          >
+            {priorityInfo.label} Priority
+          </div>
+          
+          <div className="book-rating">
+            <StarRating 
+              initialRating={Number(book.rating) || 0} 
+              onRatingChange={handleRatingChange} 
+            />
+            <span className="rating-text">
+              {book.rating ? `${book.rating}/5` : ''}
+            </span>
+          </div>
+          
+          <div className="status-selector-list">
+            <select
+              value={book.status}
+              onChange={(e) => {
+                const selectedStatus = statuses.find(s => s.status === e.target.value);
+                if (selectedStatus) {
+                  onStatusChange(book.tbr_id, selectedStatus.status_id);
+                }
+              }}
+              style={{ backgroundColor: getStatusColor(book.status) }}
+            >
+              {statuses.map(status => (
+                <option key={status.status_id} value={status.status}>
+                  {status.status}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="card-buttons-list">
+            <button className="edit-btn" onClick={() => onEditClick(book)}>
+              Edit
+            </button>
+            <button className="delete-btn" onClick={() => onDeleteClick(book)}>
+              Delete
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -34,6 +34,54 @@
   --modal-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
   --z-modal: 1000;
 }
+
+/* Dark theme - Enhanced for better contrast */
+.theme-dark {
+  --background-color: #1a1a1a;
+  --text: #fdf9f9;
+  --text-color: #150101;
+  --card-bg: #2d2d2d;
+  --background-alt: #292929;
+  --paper: #222222;
+  --border: #444444;
+  --border-dark: #555555;
+  --primary: #78a0e4; /* Brighter blue */
+  --primary-dark: #6089d0;
+  --primary-light: #445a7c;
+  --text-light: #b4acac; /* Lighter gray for better readability */
+  --text-lighter: #f6f4f4;
+  --error: #ff5c5c; /* Brighter error color */
+  --warning: #d7ac28; /* Brighter warning color */
+  --success: #4cd964; /* Brighter success color */
+  --error-light: #4d2c2c; /* Darker but still visible error background */
+}
+/* Sepia theme */
+.theme-sepia {
+  --background-color: #f4ecd8;
+  --text-color: #5b4636;
+  --card-bg: #eee0c9;
+  --background-alt: #eee0c9;
+  --paper: #f8f4e6;
+  --border: #d8cdb6;
+  --border-dark: #c4b59c;
+  --primary: #8b6f4e;
+  --primary-dark: #6f583e;
+  --primary-light: #d8c9a9;
+  --text-light: #8b7357;
+  --text-lighter: #a69580;
+}
+
+/* Then use these variables throughout your app */
+body {
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.settings-card {
+  background-color: var(--card-bg);
+  /* other styles */
+}
+
 /* Building on the existing design system */
 .App {
   display: flex;
@@ -203,6 +251,19 @@
   background-color: var(--primary);
 }
 
+.left-controls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem; /* Adds spacing between the dropdowns */
+}
+
+.filter-container, .sort-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem; /* Space between label and select */
+}
+
 /* Clean content area */
 .notebook-page {
   flex: 1;
@@ -218,6 +279,7 @@
   opacity: 0.8;
   background-color: var(--background-alt);
 }
+
 
 /* Status indicator at the top of card */
 .book-status-indicator {
@@ -1909,7 +1971,6 @@ textarea:focus {
   }
 }
 
-/*Settings Page */
 /* Settings Page - Revamped Styles */
 
 /* Page Header */
@@ -1985,6 +2046,21 @@ textarea:focus {
 
 .settings-card-body {
   padding: var(--spacing-lg);
+}
+
+/* Save Message */
+.save-message {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius);
+  margin-bottom: var(--spacing-lg);
+  font-weight: 500;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.save-message.success {
+  background-color: var(--success-light);
+  color: var(--success);
+  border: 1px solid var(--success);
 }
 
 /* Divider */
