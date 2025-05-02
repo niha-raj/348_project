@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import TBRList from './TBRlist';
 import Stats from './Stats';
 import Settings from './Settings';
+import ReadingGoals from './ReadingGoals'; // Import the ReadingGoals component
 import './App.css';
 
 function App() {
@@ -46,6 +47,8 @@ function App() {
         );
       case 'stats':
         return <Stats books={books} />;
+      case 'goals': // Add case for reading goals
+        return <ReadingGoals />;
       case 'settings':
         return <Settings />;
       default:
@@ -100,6 +103,12 @@ function App() {
               onClick={() => setCurrentPage('stats')}
             >
               Reading Stats
+            </button>
+            <button 
+              className={currentPage === 'goals' ? "tab active" : "tab"}
+              onClick={() => setCurrentPage('goals')}
+            >
+              Reading Goals
             </button>
             <button 
               className={currentPage === 'settings' ? "tab active" : "tab"}

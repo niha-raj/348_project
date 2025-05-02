@@ -1,0 +1,416 @@
+/* Reading Goals Component - Updated to match App.css */
+.reading-goals {
+    max-width: 100%;
+    padding: var(--spacing-md);
+    position: relative;
+    background-color: var(--paper);
+    color: var(--text);
+  }
+  
+  .goals-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-lg);
+  }
+  
+  .goals-header h2 {
+    margin: 0;
+    color: var(--text);
+    font-family: var(--font-title);
+    font-size: var(--font-size-xl);
+  }
+  
+  /* Button styles updated to match App.css approach */
+  .btn-primary {
+    background-color: var(--primary);
+    color: var(--text-on-primary);
+    border: none;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    transition: var(--transition);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .btn-primary:hover {
+    background-color: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+  }
+  
+  .btn-outline {
+    background-color: transparent;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    transition: var(--transition);
+  }
+  
+  .btn-outline:hover {
+    background-color: var(--primary-light);
+  }
+  
+  /* Reminders section styling updated */
+  .reminders-container {
+    background-color: var(--background-alt);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+  
+  .reminders-container h3 {
+    margin-top: 0;
+    margin-bottom: var(--spacing);
+    color: var(--text);
+    font-size: var(--font-size-lg);
+    font-family: var(--font-title);
+  }
+  
+  .reminders-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing);
+  }
+  
+  .reminder {
+    background-color: var(--paper);
+    padding: var(--spacing);
+    border-radius: var(--radius);
+    border-left: 4px solid var(--primary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: var(--transition);
+  }
+  
+  .reminder:hover {
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.08);
+    transform: translateY(-1px);
+  }
+  
+  /* New goal container styling updated */
+  .new-goal-container {
+    background-color: var(--paper);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: var(--spacing-lg);
+    border: 1px solid var(--border);
+    padding: var(--spacing-md);
+  }
+  
+  /* Loading indicator aligned with App.css styling */
+  .loading-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xl);
+    flex-direction: column;
+  }
+  
+  .loading-spinner {
+    border: 4px solid var(--border);
+    border-top: 4px solid var(--primary);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin-bottom: var(--spacing);
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  /* Empty state styling updated */
+  .empty-state {
+    text-align: center;
+    padding: var(--spacing-xl) var(--spacing-lg);
+    background-color: var(--background-alt);
+    border-radius: var(--radius-lg);
+    border: 1px dashed var(--border-dark);
+  }
+  
+  .empty-state h3 {
+    margin: 0;
+    color: var(--text-light);
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--spacing-md);
+  }
+  
+  /* Goals grid layout updated */
+  .goals-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--spacing-lg);
+  }
+  
+  /* Notification system styling updated */
+  .notification {
+    position: fixed;
+    bottom: var(--spacing-lg);
+    right: var(--spacing-lg);
+    padding: var(--spacing) var(--spacing-lg);
+    border-radius: var(--radius);
+    color: var(--text-on-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+    animation: fadeIn 0.3s, fadeOut 0.3s 5.7s;
+    z-index: var(--z-modal);
+  }
+  
+  .notification-success {
+    background-color: var(--success);
+  }
+  
+  .notification-error {
+    background-color: var(--error);
+  }
+  
+  .notification-info {
+    background-color: var(--primary);
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  @keyframes fadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(20px); }
+  }
+  
+  /* Goal Card Component - Updated to match App.css card styling */
+  .goal-card {
+    background-color: var(--paper);
+    border-radius: var(--radius);
+    padding: var(--spacing-md);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: var(--transition);
+    position: relative;
+    border: 1px solid var(--border);
+    border-top: 4px solid var(--primary);
+  }
+  
+  .goal-card:hover {
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+    border-color: var(--border-dark);
+  }
+  
+  .goal-card.completed {
+    border-top-color: var(--success);
+    opacity: 0.8;
+    background-color: var(--background-alt);
+  }
+  
+  .goal-card.overdue {
+    border-top-color: var(--error);
+  }
+  
+  .goal-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing);
+  }
+  
+  .goal-card-header h3 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--text);
+    font-family: var(--font-title);
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  
+  .goal-actions {
+    display: flex;
+    gap: var(--spacing-xs);
+  }
+  
+  .action-btn {
+    background: none;
+    border: none;
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius);
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .action-btn.edit {
+    color: var(--primary);
+  }
+  
+  .action-btn.edit:hover {
+    background-color: var(--primary-light);
+  }
+  
+  .action-btn.delete {
+    color: var(--text-light);
+  }
+  
+  .action-btn.delete:hover {
+    color: var(--error);
+  }
+  
+  .goal-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing);
+  }
+  
+  .goal-progress {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+  
+  .progress-bar {
+    flex-grow: 1;
+    height: 6px;
+    background-color: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  
+  .progress-fill {
+    height: 100%;
+    background-color: var(--primary);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+  
+  .goal-card.completed .progress-fill {
+    background-color: var(--success);
+  }
+  
+  .goal-card.overdue .progress-fill {
+    background-color: var(--error);
+  }
+  
+  .progress-text {
+    font-size: var(--font-size-xs);
+    color: var(--text-light);
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  
+  .goal-dates {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-xs);
+    color: var(--text-light);
+  }
+  
+  .goal-description {
+    font-size: var(--font-size-sm);
+    color: var(--text);
+    line-height: 1.4;
+  }
+  
+  .goal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--border);
+  }
+  
+  .goal-categories {
+    display: flex;
+    gap: var(--spacing-xs);
+    flex-wrap: wrap;
+  }
+  
+  .category-tag {
+    background-color: var(--primary-light);
+    color: var(--primary-dark);
+    font-size: var(--font-size-xs);
+    padding: 3px var(--spacing-sm);
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  
+  .completion-checkbox {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+  }
+  
+  .completion-checkbox input {
+    margin: 0;
+    accent-color: var(--primary);
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+  }
+  
+  .completion-checkbox label {
+    font-size: var(--font-size-xs);
+    color: var(--text-light);
+    cursor: pointer;
+  }
+  
+  /* Theme support enhancements to match App.css */
+  .theme-dark .goal-card {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+  
+  .theme-dark .progress-bar {
+    background-color: var(--border-dark);
+  }
+  
+  .theme-dark .category-tag {
+    color: var(--text-lighter);
+  }
+  
+  .theme-dark .action-btn.edit:hover {
+    color: var(--text-lighter);
+  }
+  
+  .theme-sepia .category-tag {
+    background-color: var(--primary-light);
+    color: var(--primary-dark);
+  }
+  
+  .theme-sepia .goal-card {
+    box-shadow: 0 2px 8px rgba(139, 111, 78, 0.1);
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .goals-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .goals-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--spacing-sm);
+    }
+    
+    .goal-card-header {
+      flex-direction: column;
+      gap: var(--spacing-sm);
+    }
+    
+    .goal-actions {
+      align-self: flex-end;
+    }
+  }

@@ -1,19 +1,313 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 import datetime
+import os
 import sqlite3
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}}, supports_credentials=True)
 
-# Database functions
-def add_book(title, author_name, genre, category=None, page_count=None, publication_year=None, priority=5, status_id=3):
-    print(f"Adding book: {title} by {author_name}, genre: {genre}")
+# Configure SQLAlchemy
+base_dir = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(base_dir, "tbrlist.db")}'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Initialize SQLAlchemy
+db = SQLAlchemy(app)
+
+# ================ ORM Models (SQLAlchemy) ================
+
+class Author(db.Model):
+    __tablename__ = 'Authors'
+    author_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(255), nullable=False)
+    books = db.relationship('Book', backref='author', lazy=True)
+
+class Genre(db.Model):
+    __tablename__ = 'Genres'
+    genre_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    genre = db.Column(db.String(100), nullable=False)
+    category = db.Column(db.String(100))
+    books = db.relationship('Book', backref='genre_rel', lazy=True)
+
+class ReadingStatus(db.Model):
+    __tablename__ = 'Reading Status'
+    status_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    status = db.Column(db.String(50), nullable=False)
+    tbr_items = db.relationship('TBRList', backref='status', lazy=True)
+
+class Book(db.Model):
+    __tablename__ = 'Books'
+    book_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    title = db.Column(db.String(255), nullable=False)
+    author_id = db.Column(db.Integer, db.ForeignKey('Authors.author_id'), nullable=False)
+    genre_id = db.Column(db.Integer, db.ForeignKey('Genres.genre_id'), nullable=False)
+    page_count = db.Column(db.Integer)
+    publication_year = db.Column(db.Integer)
+    rating = db.Column(db.Integer)
+    tbr_items = db.relationship('TBRList', backref='book', lazy=True, cascade="all, delete-orphan")
+
+class TBRList(db.Model):
+    __tablename__ = 'TBRlist'
+    tbr_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    book_id = db.Column(db.Integer, db.ForeignKey('Books.book_id'), nullable=False)
+    status_id = db.Column(db.Integer, db.ForeignKey('Reading Status.status_id'), nullable=False)
+    priority = db.Column(db.Integer, default=5)
+    date_added = db.Column(db.String(20))
+    date_completed = db.Column(db.String(20))
+
+class UserSettings(db.Model):
+    __tablename__ = 'UserSettings'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    theme = db.Column(db.String(20), default='light')
+    card_layout = db.Column(db.String(20), default='grid')
+    show_priority = db.Column(db.Integer, default=1)  # SQLite boolean as integer
+    default_sort = db.Column(db.String(20), default='priority')
+    notifications = db.Column(db.Integer, default=1)
+    auto_backup = db.Column(db.Integer, default=0)
+
+class ReadingGoal(db.Model):
+    __tablename__ = 'ReadingGoals'
+    goal_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, default=1)
+    goal_type = db.Column(db.String(50), nullable=False)
+    target_value = db.Column(db.Integer)
+    target_book_id = db.Column(db.Integer, db.ForeignKey('Books.book_id'))
+    target_genre_id = db.Column(db.Integer, db.ForeignKey('Genres.genre_id'))
+    start_date = db.Column(db.String(20), nullable=False)
+    end_date = db.Column(db.String(20), nullable=False)
+    reminder_frequency = db.Column(db.String(20))
+    last_reminder_date = db.Column(db.String(20))
+    completed = db.Column(db.Integer, default=0)
+    progress = db.Column(db.Integer, default=0)
+
+# ================ ORM Data Access Functions ================
+
+def add_book_orm(title, author_name, genre_name, category=None, page_count=None, 
+              publication_year=None, priority=5, status_id=3):
+    """Add a book using SQLAlchemy ORM"""
+    print(f"Adding book via ORM: {title} by {author_name}, genre: {genre_name}")
+    
+    try:
+        # Get or create author
+        author = Author.query.filter_by(name=author_name).first()
+        if not author:
+            author = Author(name=author_name)
+            db.session.add(author)
+            db.session.flush()  # Get the ID without committing
+        
+        # Get or create genre
+        genre = Genre.query.filter_by(genre=genre_name).first()
+        if genre:
+            if category:
+                genre.category = category
+        else:
+            genre = Genre(genre=genre_name, category=category)
+            db.session.add(genre)
+            db.session.flush()
+        
+        # Create new book
+        book = Book(
+            title=title,
+            author_id=author.author_id,
+            genre_id=genre.genre_id if genre else None,
+            page_count=page_count,
+            publication_year=publication_year
+        )
+        db.session.add(book)
+        db.session.flush()
+        
+        # Add to TBR list
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        tbr_item = TBRList(
+            book_id=book.book_id,
+            status_id=status_id,
+            priority=priority,
+            date_added=today
+        )
+        db.session.add(tbr_item)
+        
+        db.session.commit()
+        return book.book_id
+        
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        print(f"Error adding book via ORM: {str(e)}")
+        raise e
+
+def get_authors_orm():
+    """Get all authors using ORM"""
+    authors = Author.query.order_by(Author.name).all()
+    return [{"author_id": a.author_id, "name": a.name} for a in authors]
+
+def get_genres_orm():
+    """Get all genres using ORM"""
+    genres = Genre.query.order_by(Genre.genre).all()
+    return [{"genre_id": g.genre_id, "genre": g.genre} for g in genres]
+
+def get_statuses_orm():
+    """Get all reading statuses using ORM"""
+    statuses = ReadingStatus.query.all()
+    return [{"status_id": s.status_id, "status": s.status} for s in statuses]
+
+def update_status_orm(tbr_id, status_id):
+    """Update book reading status using ORM"""
+    try:
+        tbr_item = TBRList.query.get(tbr_id)
+        if not tbr_item:
+            raise Exception(f"No TBR item found with id {tbr_id}")
+        
+        tbr_item.status_id = status_id
+        
+        # If status is "Completed", add completion date
+        if status_id == 1:  # Assuming 1 is "Completed"
+            tbr_item.date_completed = datetime.datetime.now().strftime("%Y-%m-%d")
+        else:
+            tbr_item.date_completed = None
+            
+        db.session.commit()
+        return True
+        
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        print(f"Error updating status via ORM: {str(e)}")
+        raise e
+
+def update_rating_orm(tbr_id, rating):
+    """Update book rating using ORM"""
+    try:
+        tbr_item = TBRList.query.get(tbr_id)
+        if not tbr_item:
+            raise Exception(f"No TBR item found with id {tbr_id}")
+            
+        book = Book.query.get(tbr_item.book_id)
+        if not book:
+            raise Exception(f"No book found with id {tbr_item.book_id}")
+            
+        book.rating = rating
+        db.session.commit()
+        return True
+        
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        print(f"Error updating rating via ORM: {str(e)}")
+        raise e
+
+def get_user_settings_orm():
+    """Get user settings using ORM"""
+    settings = UserSettings.query.first()
+    if not settings:
+        # Create default settings
+        settings = UserSettings()
+        db.session.add(settings)
+        db.session.commit()
+    
+    # Convert SQLite integers to Python booleans for JSON response
+    return {
+        "id": settings.id,
+        "theme": settings.theme,
+        "card_layout": settings.card_layout,
+        "show_priority": bool(settings.show_priority),
+        "default_sort": settings.default_sort,
+        "notifications": bool(settings.notifications),
+        "auto_backup": bool(settings.auto_backup)
+    }
+
+def update_user_settings_orm(settings_data):
+    """Update user settings using ORM"""
+    try:
+        settings = UserSettings.query.first()
+        if not settings:
+            settings = UserSettings()
+            db.session.add(settings)
+        
+        # Update settings from dictionary
+        if 'theme' in settings_data:
+            settings.theme = settings_data['theme']
+        if 'cardLayout' in settings_data:
+            settings.card_layout = settings_data['cardLayout']
+        if 'show_priority' in settings_data:
+            settings.show_priority = 1 if settings_data['show_priority'] else 0
+        if 'defaultSort' in settings_data:
+            settings.default_sort = settings_data['defaultSort']
+        if 'notifications' in settings_data:
+            settings.notifications = 1 if settings_data['notifications'] else 0
+        if 'auto_backup' in settings_data:
+            settings.auto_backup = 1 if settings_data['auto_backup'] else 0
+            
+        db.session.commit()
+        return True
+        
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        print(f"Error updating settings via ORM: {str(e)}")
+        raise e
+
+# ================ PREPARED STATEMENTS Functions ================
+
+def get_tbr_list_prepared():
+    """Get TBR list using prepared statements"""
+    conn = sqlite3.connect('tbrlist.db')
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # SQL with parameters (prepared statement)
+    sql = """
+        SELECT t.tbr_id, b.book_id, b.title, a.name as author, g.genre as genre, 
+        g.category as category, rs.status, t.priority, t.date_added, t.date_completed,
+        b.page_count, b.publication_year, b.rating
+        FROM TBRlist t
+        JOIN Books b ON t.book_id = b.book_id
+        JOIN Authors a ON b.author_id = a.author_id
+        JOIN Genres g ON b.genre_id = g.genre_id
+        JOIN [Reading Status] rs ON t.status_id = rs.status_id
+        ORDER BY t.priority DESC, t.date_added DESC
+    """
+    
+    cursor.execute(sql)
+    books = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return books
+
+def delete_book_prepared(book_id):
+    """Delete a book using prepared statements"""
     conn = sqlite3.connect('tbrlist.db')
     cursor = conn.cursor()
     
     try:
+        # Delete from TBRlist first (foreign key constraints)
+        cursor.execute("DELETE FROM TBRlist WHERE book_id = ?", (book_id,))
+        
+        # Delete the book
+        cursor.execute("DELETE FROM Books WHERE book_id = ?", (book_id,))
+        
+        # Cleanup orphaned authors
+        cursor.execute("DELETE FROM Authors WHERE author_id NOT IN (SELECT author_id FROM Books)")
+        
+        # Cleanup orphaned genres
+        cursor.execute("DELETE FROM Genres WHERE genre_id NOT IN (SELECT genre_id FROM Books)")
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting book with prepared statement: {str(e)}")
+        raise e
+    finally:
+        conn.close()
+
+def update_book_prepared(book_id, title, author_name, genre_name, category=None, 
+                         page_count=None, publication_year=None, priority=None):
+    """Update a book using prepared statements"""
+    conn = sqlite3.connect('tbrlist.db')
+    cursor = conn.cursor()
+    
+    try:
+        # First, ensure the author exists or add a new one
         cursor.execute("SELECT author_id FROM Authors WHERE name = ?", (author_name,))
         author = cursor.fetchone()
         if author:
@@ -22,459 +316,295 @@ def add_book(title, author_name, genre, category=None, page_count=None, publicat
             cursor.execute("INSERT INTO Authors (name) VALUES (?)", (author_name,))
             author_id = cursor.lastrowid
         
-        cursor.execute("SELECT genre_id FROM Genres WHERE genre = ?", (genre,))
+        # Next, ensure the genre exists or add a new one
+        cursor.execute("SELECT genre_id FROM Genres WHERE genre = ?", (genre_name,))
         genre_row = cursor.fetchone()
         if genre_row:
             genre_id = genre_row[0]
+            # Update category if provided
             if category:
-                cursor.execute("UPDATE Genres SET category = ? WHERE genre_id = ?", (category, genre_id))
+                cursor.execute("UPDATE Genres SET category = ? WHERE genre_id = ?", 
+                              (category, genre_id))
         else:
-            cursor.execute("INSERT INTO Genres (genre, category) VALUES (?, ?)", (genre, category))
+            cursor.execute("INSERT INTO Genres (genre, category) VALUES (?, ?)", 
+                          (genre_name, category))
             genre_id = cursor.lastrowid
         
+        # Update the book data
         cursor.execute("""
-        INSERT INTO Books (title, author_id, genre_id, page_count, publication_year) 
-        VALUES (?, ?, ?, ?, ?)
-        """, (title, author_id, genre_id, page_count, publication_year))
-        book_id = cursor.lastrowid
+        UPDATE Books    
+        SET title = ?, author_id = ?, genre_id = ?, page_count = ?, publication_year = ?
+        WHERE book_id = ?
+        """, (title, author_id, genre_id, page_count, publication_year, book_id))
         
-        today = datetime.datetime.now().strftime("%Y-%m-%d")
-        cursor.execute("""
-        INSERT INTO TBRlist (book_id, status_id, priority, date_added) 
-        VALUES (?, ?, ?, ?)
-        """, (book_id, status_id, priority, today))
-        
-        conn.commit()
-        print(f"Book added successfully with ID: {book_id}")
-        return book_id
-    except Exception as e:
-        conn.rollback()
-        print(f"Error adding book: {str(e)}")
-        raise e
-    finally:
-        conn.close()
-
-def get_tbr_list():
-    conn = sqlite3.connect('tbrlist.db')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        SELECT t.tbr_id, b.book_id, b.title, a.name as author, g.genre as genre, 
-       g.category as category, rs.status, t.priority, t.date_added, t.date_completed,
-       b.page_count, b.publication_year, b.rating
-        FROM TBRlist t
-        JOIN Books b ON t.book_id = b.book_id
-        JOIN Authors a ON b.author_id = a.author_id
-        JOIN Genres g ON b.genre_id = g.genre_id
-        JOIN [Reading Status] rs ON t.status_id = rs.status_id
-        ORDER BY t.priority DESC, t.date_added DESC
-        """)
-    
-    books = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return books
-
-def get_authors():
-    conn = sqlite3.connect('tbrlist.db')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT author_id, name FROM Authors ORDER BY name")
-    authors = [dict(row) for row in cursor.fetchall()]
-    
-    conn.close()
-    return authors
-
-def get_genres():
-    conn = sqlite3.connect('tbrlist.db')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT genre_id, genre FROM Genres ORDER BY genre")
-    genres = [dict(row) for row in cursor.fetchall()]
-    
-    conn.close()
-    return genres
-
-def get_statuses():
-    conn = sqlite3.connect('tbrlist.db')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT status_id, status FROM [Reading Status]")
-    statuses = [dict(row) for row in cursor.fetchall()]
-    
-    conn.close()
-    return statuses
-
-def update_status(tbr_id, status_id):
-    conn = sqlite3.connect('tbrlist.db')
-    cursor = conn.cursor()
-    
-    try:
-        # If status is "Completed", add completion date
-        if status_id == 1:  # Assuming 1 is "Completed"
-            today = datetime.datetime.now().strftime("%Y-%m-%d")
+        # Update the priority in the TBR list if provided
+        if priority is not None:
             cursor.execute("""
-            UPDATE TBRlist SET status_id = ?, date_completed = ?
-            WHERE tbr_id = ?
-            """, (status_id, today, tbr_id))
-        else:
-            cursor.execute("""
-            UPDATE TBRlist SET status_id = ?, date_completed = NULL
-            WHERE tbr_id = ?
-            """, (status_id, tbr_id))
+            UPDATE TBRlist 
+            SET priority = ? 
+            WHERE book_id = ?
+            """, (priority, book_id))
         
         conn.commit()
         return True
     except Exception as e:
         conn.rollback()
-        print(f"Error updating status: {str(e)}")
+        print(f"Error updating book with prepared statement: {str(e)}")
         raise e
     finally:
         conn.close()
 
-# API Routes
+def create_reading_goal_prepared(goal_type, target_value=None, target_book_id=None, 
+                                target_genre_id=None, start_date=None, end_date=None, 
+                                reminder_frequency="weekly"):
+    """Create a reading goal using prepared statements"""
+    conn = sqlite3.connect('tbrlist.db')
+    cursor = conn.cursor()
+    
+    try:
+        # Set default dates if not provided
+        if not start_date:
+            start_date = datetime.datetime.now().strftime("%Y-%m-%d")
+        
+        # Set default end date to end of year if not provided
+        if not end_date:
+            end_date = datetime.datetime(datetime.datetime.now().year, 12, 31).strftime("%Y-%m-%d")
+        
+        cursor.execute("""
+        INSERT INTO ReadingGoals (
+            goal_type, target_value, target_book_id, target_genre_id,
+            start_date, end_date, reminder_frequency, progress
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+        """, (goal_type, target_value, target_book_id, target_genre_id, 
+              start_date, end_date, reminder_frequency))
+        
+        goal_id = cursor.lastrowid
+        conn.commit()
+        return goal_id
+    
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating reading goal with prepared statement: {str(e)}")
+        raise e
+    finally:
+        conn.close()
+
+def get_reading_goals_prepared():
+    """Get all reading goals with detailed information using prepared statements"""
+    conn = sqlite3.connect('tbrlist.db')
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+        SELECT 
+            g.goal_id, g.goal_type, g.target_value, g.target_book_id, 
+            g.target_genre_id, g.start_date, g.end_date, g.reminder_frequency,
+            g.last_reminder_date, g.completed, g.progress,
+            b.title as book_title, a.name as author_name,
+            ge.genre as genre_name
+        FROM ReadingGoals g
+        LEFT JOIN Books b ON g.target_book_id = b.book_id
+        LEFT JOIN Authors a ON b.author_id = a.author_id
+        LEFT JOIN Genres ge ON g.target_genre_id = ge.genre_id
+        ORDER BY g.end_date ASC
+        """)
+        
+        goals = [dict(row) for row in cursor.fetchall()]
+        
+        # Calculate days remaining for each goal
+        for goal in goals:
+            try:
+                end_date = datetime.datetime.strptime(goal['end_date'], "%Y-%m-%d")
+                today = datetime.datetime.now()
+                goal['days_remaining'] = (end_date - today).days
+                
+                # Calculate percentage completion
+                if goal['target_value'] and goal['target_value'] > 0:
+                    goal['percentage'] = min(100, int((goal['progress'] / goal['target_value']) * 100))
+                else:
+                    goal['percentage'] = 0 if goal['completed'] == 0 else 100
+                    
+            except Exception as e:
+                print(f"Error calculating goal metrics: {str(e)}")
+                goal['days_remaining'] = 0
+                goal['percentage'] = 0
+        
+        return goals
+    
+    except Exception as e:
+        print(f"Error retrieving reading goals with prepared statement: {str(e)}")
+        raise e
+    finally:
+        conn.close()
+
+def update_goal_progress_prepared(goal_id, progress=None, completed=None):
+    """Update a goal's progress or completion status using prepared statements"""
+    conn = sqlite3.connect('tbrlist.db')
+    cursor = conn.cursor()
+    
+    try:
+        # Build the update query based on provided parameters
+        update_parts = []
+        params = []
+        
+        if progress is not None:
+            update_parts.append("progress = ?")
+            params.append(progress)
+            
+        if completed is not None:
+            update_parts.append("completed = ?")
+            params.append(1 if completed else 0)
+            
+        if not update_parts:
+            return False  # Nothing to update
+            
+        # Add the goal_id to the parameters
+        params.append(goal_id)
+        
+        cursor.execute(
+            f"UPDATE ReadingGoals SET {', '.join(update_parts)} WHERE goal_id = ?", 
+            params
+        )
+        
+        conn.commit()
+        return True
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating goal progress with prepared statement: {str(e)}")
+        raise e
+    finally:
+        conn.close()
+
+def delete_reading_goal_prepared(goal_id):
+    """Delete a reading goal using prepared statements"""
+    conn = sqlite3.connect('tbrlist.db')
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("DELETE FROM ReadingGoals WHERE goal_id = ?", (goal_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting reading goal with prepared statement: {str(e)}")
+        raise e
+    finally:
+        conn.close()
+
+def check_goal_reminders_prepared():
+    """Check for goals that need reminders using prepared statements"""
+    conn = sqlite3.connect('tbrlist.db')
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    try:
+        # Find goals that are not completed and end date is in the future or today
+        cursor.execute("""
+        SELECT 
+            g.goal_id, g.goal_type, g.target_value, g.progress,
+            g.reminder_frequency, g.last_reminder_date,
+            g.start_date, g.end_date,
+            b.title as book_title,
+            ge.genre as genre_name
+        FROM ReadingGoals g
+        LEFT JOIN Books b ON g.target_book_id = b.book_id
+        LEFT JOIN Genres ge ON g.target_genre_id = ge.genre_id
+        WHERE g.completed = 0
+        AND g.end_date >= ?
+        """, (today,))
+        
+        goals = [dict(row) for row in cursor.fetchall()]
+        goals_needing_reminders = []
+        
+        for goal in goals:
+            send_reminder = False
+            
+            # Parse last reminder date if it exists
+            last_reminder = None
+            if goal['last_reminder_date']:
+                try:
+                    last_reminder = datetime.datetime.strptime(goal['last_reminder_date'], "%Y-%m-%d")
+                except:
+                    last_reminder = None
+            
+            # Check if we should send a reminder based on frequency
+            today_date = datetime.datetime.now()
+            
+            if not last_reminder:
+                send_reminder = True
+            elif goal['reminder_frequency'] == 'daily':
+                # Send reminder if last reminder was not today
+                send_reminder = last_reminder.date() < today_date.date()
+            elif goal['reminder_frequency'] == 'weekly':
+                # Send reminder if last reminder was more than 7 days ago
+                send_reminder = (today_date - last_reminder).days >= 7
+            elif goal['reminder_frequency'] == 'monthly':
+                # Send reminder if last reminder was in a different month
+                send_reminder = (
+                    last_reminder.month != today_date.month or
+                    last_reminder.year != today_date.year
+                )
+            
+            if send_reminder:
+                goals_needing_reminders.append(goal)
+                
+                # Update the last_reminder_date
+                cursor.execute(
+                    "UPDATE ReadingGoals SET last_reminder_date = ? WHERE goal_id = ?",
+                    (today, goal['goal_id'])
+                )
+        
+        conn.commit()
+        return goals_needing_reminders
+        
+    except Exception as e:
+        print(f"Error checking for goal reminders with prepared statement: {str(e)}")
+        return []
+    finally:
+        conn.close()
+
+# ================ API Routes ================
+
 @app.route('/api/book', methods=['POST'])
 def api_add_book():
     try:
         data = request.json
         print(f"Received book data: {data}")
-        book_id = add_book(
-            data['title'],
-            data['author_name'],
-            data['genre'],
-            data.get('category'),  
-            data.get('page_count'),
-            data.get('publication_year'),
-            data.get('priority', 5),
-            data.get('status_id', 3)
+        
+        # Using ORM for adding books
+        book_id = add_book_orm(
+            title=data['title'],
+            author_name=data['author_name'],
+            genre_name=data['genre'],
+            category=data.get('category'),  
+            page_count=data.get('page_count'),
+            publication_year=data.get('publication_year'),
+            priority=data.get('priority', 5),
+            status_id=data.get('status_id', 3)
         )
+        
         return jsonify({"success": True, "book_id": book_id})
     except Exception as e:
         print(f"Error in API: {str(e)}")
         return jsonify({"error": str(e)}), 500
-def update_rating(tbr_id, rating):
-    conn = sqlite3.connect('tbrlist.db')
-    cursor = conn.cursor()
-    
-    try:
-        # First, get the book_id from the tbr_id
-        cursor.execute("SELECT book_id FROM TBRlist WHERE tbr_id = ?", (tbr_id,))
-        result = cursor.fetchone()
-        if not result:
-            raise Exception(f"No TBR entry found with id {tbr_id}")
-            
-        book_id = result[0]
-        
-        # Update the rating in the Books table
-        cursor.execute("""
-        UPDATE Books SET rating = ?
-        WHERE book_id = ?
-        """, (rating, book_id))
-        
-        conn.commit()
-        return True
-    except Exception as e:
-        conn.rollback()
-        print(f"Error updating rating: {str(e)}")
-        raise e
-    finally:
-        conn.close()
-
-def get_user_settings():
-    conn = sqlite3.connect('tbrlist.db')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    # Ensure there's at least one settings row
-    cursor.execute("SELECT COUNT(*) FROM UserSettings")
-    count = cursor.fetchone()[0]
-    if count == 0:
-        cursor.execute("""
-        INSERT INTO UserSettings (theme, card_layout, show_priority, default_sort, notifications, auto_backup)
-        VALUES ('light', 'grid', 1, 'priority', 1, 0)
-        """)
-        conn.commit()
-    
-    cursor.execute("SELECT * FROM UserSettings LIMIT 1")
-    settings = dict(cursor.fetchone())
-    
-    # Convert boolean fields from SQLite INTEGER to Python bool
-    settings['show_priority'] = bool(settings['show_priority'])
-    settings['notifications'] = bool(settings['notifications'])
-    settings['auto_backup'] = bool(settings['auto_backup'])
-    
-    conn.close()
-    return settings
-
-def update_user_settings(settings):
-    conn = sqlite3.connect('tbrlist.db')
-    cursor = conn.cursor()
-    
-    try:
-        # Convert Python bool to SQLite INTEGER
-        show_priority = 1 if settings.get('show_priority') else 0
-        notifications = 1 if settings.get('notifications') else 0
-        auto_backup = 1 if settings.get('auto_backup') else 0
-        
-        cursor.execute("""
-        UPDATE UserSettings SET
-        theme = ?,
-        card_layout = ?,
-        show_priority = ?,
-        default_sort = ?,
-        notifications = ?,
-        auto_backup = ?
-        """, (
-            settings.get('theme', 'light'),
-            settings.get('cardLayout', 'grid'),
-            show_priority,
-            settings.get('defaultSort', 'priority'),
-            notifications,
-            auto_backup
-        ))
-        
-        conn.commit()
-        return True
-    except Exception as e:
-        conn.rollback()
-        print(f"Error updating settings: {str(e)}")
-        raise e
-    finally:
-        conn.close()
-
-def parse_exported_text(text):
-    """Parse the formatted export text back into book data"""
-    books = []
-    current_status = None
-    lines = text.split('\n')
-    
-    book_data = {}
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-        
-        # Debug output
-        print(f"Processing line: '{line}'")
-        
-        # Look for status headers
-        if line.startswith('## '):
-            status_header = line[3:].strip()
-            print(f"Found status header: {status_header}")
-            
-            # Handle different status formats
-            if status_header.startswith('COMPLETE'):
-                current_status = 'Complete'
-            elif status_header.startswith('NOT STARTED'):
-                current_status = 'Not Started'
-            elif status_header.startswith('READING'):
-                current_status = 'In-Progress'
-            else:
-                # Extract just the first word in case there's a count in parentheses
-                current_status = status_header.split(' ')[0].strip().capitalize()
-                
-            print(f"Set current_status to: {current_status}")
-            i += 1
-            continue
-            
-        # Look for book entries
-        if line.startswith('* '):
-            # Save previous book if exists
-            if book_data and 'title' in book_data:
-                print(f"Saving completed book: {book_data}")
-                books.append(book_data)
-            
-            # Start a new book
-            book_data = {'status': current_status}
-            
-            # Parse title and author
-            title_author = line[2:].strip()
-            if ' by ' in title_author:
-                book_data['title'] = title_author.split(' by ')[0].strip()
-                book_data['author'] = title_author.split(' by ')[1].strip()
-            else:
-                book_data['title'] = title_author
-                book_data['author'] = ''
-                
-        # Parse book details - FIXED: now looking for lines starting with '- ' instead of '  - '
-        elif line.startswith('- '):  # Changed from '  - ' to '- '
-            detail_line = line[2:].strip()  # Extract the detail content
-            print(f"Found detail line: '{detail_line}'")
-            
-            if detail_line.startswith('Genre: '):
-                genre_text = detail_line[7:]
-                if '(' in genre_text and ')' in genre_text:
-                    book_data['genre'] = genre_text.split('(')[0].strip()
-                    book_data['category'] = genre_text.split('(')[1].split(')')[0].strip()
-                else:
-                    book_data['genre'] = genre_text
-                    book_data['category'] = ''
-                print(f"Set genre: {book_data.get('genre')}, category: {book_data.get('category')}")
-                    
-            elif detail_line.startswith('Priority: '):
-                # Count Unicode stars (★)
-                book_data['priority'] = detail_line.count('★')
-                print(f"Set priority: {book_data.get('priority')}")
-                
-            elif detail_line.startswith('Pages: '):
-                try:
-                    book_data['page_count'] = int(detail_line[7:])
-                    print(f"Set page_count: {book_data.get('page_count')}")
-                except:
-                    book_data['page_count'] = 0
-                    
-            elif detail_line.startswith('Published: '):
-                try:
-                    book_data['publication_year'] = int(detail_line[11:])
-                    print(f"Set publication_year: {book_data.get('publication_year')}")
-                except:
-                    book_data['publication_year'] = 0
-                    
-            elif detail_line.startswith('Rating: '):
-                # Count Unicode stars (★)
-                book_data['rating'] = detail_line.count('★')
-                print(f"Set rating: {book_data.get('rating')}")
-                
-            elif detail_line.startswith('Added on: '):
-                book_data['date_added'] = detail_line[10:]
-                print(f"Set date_added: {book_data.get('date_added')}")
-                
-            elif detail_line.startswith('Completed on: '):
-                book_data['date_completed'] = detail_line[14:]
-                print(f"Set date_completed: {book_data.get('date_completed')}")
-        
-        # Empty line might indicate end of a book entry
-        elif line == '' and book_data and 'title' in book_data and i < len(lines) - 1 and not lines[i+1].startswith('- '):  # Changed from '  - ' to '- '
-            print(f"End of book data detected, saving: {book_data}")
-            books.append(book_data)
-            book_data = {}
-            
-        i += 1
-    
-    # Add the last book if there is one
-    if book_data and 'title' in book_data:
-        print(f"Adding final book: {book_data}")
-        books.append(book_data)
-        
-    # Final debug output
-    print(f"Total books parsed: {len(books)}")
-    for idx, book in enumerate(books):
-        print(f"Book {idx+1}: {book}")
-        
-    return books
-
-def save_imported_books(imported_books):
-    """
-    Save the imported books to the database using the existing add_book function
-    and update ratings for existing books if needed
-    """
-    # Get existing books to check for duplicates
-    existing_books = get_tbr_list()
-    
-    # Create a dictionary of existing books for quick lookup
-    existing_books_dict = {}
-    for book in existing_books:
-        key = (book['title'].lower(), book['author'].lower())
-        existing_books_dict[key] = book
-    
-    new_books_added = 0
-    updates_made = 0
-    skipped_books = 0
-    
-    for book in imported_books:
-        # Print the book data for debugging
-        print(f"Processing imported book: {book}")
-        
-        title = book['title']
-        author = book.get('author', '')
-        lookup_key = (title.lower(), author.lower())
-        
-        if lookup_key in existing_books_dict:
-            # Book exists - check if we need to update rating or other fields
-            existing_book = existing_books_dict[lookup_key]
-            
-            # Update rating if it exists and is different
-            if 'rating' in book and book['rating'] and (existing_book.get('rating', 0) != book['rating']):
-                try:
-                    # Update the rating if it's different
-                    update_rating(existing_book['tbr_id'], book['rating'])
-                    updates_made += 1
-                except Exception as e:
-                    print(f"Error updating rating for {title}: {str(e)}")
-            else:
-                skipped_books += 1
-        else:
-            # New book - add it to the database
-            try:
-                # Map status to status_id
-                status_mapping = {
-                    'Not Started': 3,
-                    'In-Progress': 2,
-                    'Complete': 1
-                }
-                status_id = status_mapping.get(book.get('status'), 3)  # Default to "To Read"
-                
-                # Convert values to appropriate types
-                page_count = int(book.get('page_count', 0)) if book.get('page_count') else None
-                publication_year = int(book.get('publication_year', 0)) if book.get('publication_year') else None
-                priority = int(book.get('priority', 5))
-                genre = book.get('genre', '')
-                category = book.get('category', '')
-                
-                # Print the parameters being passed to add_book
-                print(f"Adding book with: title={title}, author={author}, genre={genre}, category={category}, pages={page_count}, year={publication_year}, priority={priority}")
-                
-                # Add the book
-                book_id = add_book(
-                    title=title,
-                    author_name=author,
-                    genre=genre,
-                    category=category,
-                    page_count=page_count,
-                    publication_year=publication_year,
-                    priority=priority,
-                    status_id=status_id
-                )
-                
-                # If the book has a rating, update it
-                if 'rating' in book and book['rating']:
-                    # We need to get the tbr_id first
-                    conn = sqlite3.connect('tbrlist.db')
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT tbr_id FROM TBRlist WHERE book_id = ?", (book_id,))
-                    tbr_result = cursor.fetchone()
-                    conn.close()
-                    
-                    if tbr_result:
-                        tbr_id = tbr_result[0]
-                        update_rating(tbr_id, book['rating'])
-                
-                new_books_added += 1
-            except Exception as e:
-                print(f"Error adding book {title}: {str(e)}")
-                skipped_books += 1
-    
-    return {
-        "total_imported": len(imported_books),
-        "new_books_added": new_books_added,
-        "updates_made": updates_made,
-        "skipped_books": skipped_books
-    }
-
 
 @app.route('/api/tbr', methods=['GET'])
 def api_get_tbr():
     try:
-        books = get_tbr_list()
+        # Using prepared statements for complex join query
+        books = get_tbr_list_prepared()
         return jsonify(books)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 @app.route('/api/authors', methods=['GET'])
 def api_get_authors():
     try:
-        authors = get_authors()
+        # Using ORM for simple query
+        authors = get_authors_orm()
         return jsonify(authors)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -482,7 +612,8 @@ def api_get_authors():
 @app.route('/api/genres', methods=['GET'])
 def api_get_genres():
     try:
-        genres = get_genres()
+        # Using ORM for simple query
+        genres = get_genres_orm()
         return jsonify(genres)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -490,7 +621,8 @@ def api_get_genres():
 @app.route('/api/statuses', methods=['GET'])
 def api_get_statuses():
     try:
-        statuses = get_statuses()
+        # Using ORM for simple query
+        statuses = get_statuses_orm()
         return jsonify(statuses)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -499,7 +631,8 @@ def api_get_statuses():
 def api_update_rating():
     try:
         data = request.json
-        success = update_rating(data['tbr_id'], data['rating'])
+        # Using ORM for update
+        success = update_rating_orm(data['tbr_id'], data['rating'])
         return jsonify({"success": success})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -508,7 +641,8 @@ def api_update_rating():
 def api_update_status():
     try:
         data = request.json
-        success = update_status(data['tbr_id'], data['status_id'])
+        # Using ORM for update
+        success = update_status_orm(data['tbr_id'], data['status_id'])
         return jsonify({"success": success})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -516,17 +650,14 @@ def api_update_status():
 @app.route('/api/clear_tbr', methods=['DELETE'])
 def api_clear_tbr():
     try:
-        conn = sqlite3.connect('tbrlist.db')
-        cursor = conn.cursor()
-
-        cursor.execute("DELETE FROM TBRlist")
-        cursor.execute("DELETE FROM Books")
-        cursor.execute("DELETE FROM Authors")
-        cursor.execute("DELETE FROM Genres")
-                
-        conn.commit()
-        conn.close()
-
+        # Using raw SQL since this is a batch operation
+        with db.engine.connect() as connection:
+            connection.execute(text("DELETE FROM TBRlist"))
+            connection.execute(text("DELETE FROM Books"))
+            connection.execute(text("DELETE FROM Authors"))
+            connection.execute(text("DELETE FROM Genres"))
+            connection.commit()
+            
         return jsonify({"success": True, "message": "TBR list cleared successfully."})
     except Exception as e:
         print(f"Error clearing TBR list: {str(e)}")
@@ -535,19 +666,9 @@ def api_clear_tbr():
 @app.route('/api/book/<int:book_id>', methods=['DELETE'])
 def api_delete_book(book_id):
     try:
-        conn = sqlite3.connect('tbrlist.db')
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM TBRlist WHERE book_id = ?", (book_id,))
-        cursor.execute("DELETE FROM Books WHERE book_id = ?", (book_id,))
-        cursor.execute("""
-        DELETE FROM Authors WHERE author_id NOT IN (SELECT author_id FROM Books)
-        """)
-        cursor.execute("""
-        DELETE FROM Genres WHERE genre_id NOT IN (SELECT genre_id FROM Books)
-        """)
-        conn.commit()
-        conn.close()  
-        return jsonify({"success": True, "message": f"Book with ID {book_id} deleted successfully."})
+        # Using prepared statements for complex delete
+        success = delete_book_prepared(book_id)
+        return jsonify({"success": success, "message": f"Book with ID {book_id} deleted successfully."})
     except Exception as e:
         print(f"Error deleting book: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -556,52 +677,19 @@ def api_delete_book(book_id):
 def api_update_book(book_id):
     try:
         data = request.json
-        conn = sqlite3.connect('tbrlist.db')
-        cursor = conn.cursor()
+        # Using prepared statements for complex update
+        success = update_book_prepared(
+            book_id=book_id,
+            title=data['title'],
+            author_name=data['author_name'],
+            genre_name=data['genre'],
+            category=data.get('category'),
+            page_count=data.get('page_count'),
+            publication_year=data.get('publication_year'),
+            priority=data.get('priority')
+        )
         
-        # First, ensure the author exists or add a new one
-        cursor.execute("SELECT author_id FROM Authors WHERE name = ?", (data['author_name'],))
-        author = cursor.fetchone()
-        if author:
-            author_id = author[0]
-        else:
-            cursor.execute("INSERT INTO Authors (name) VALUES (?)", (data['author_name'],))
-            author_id = cursor.lastrowid
-        
-        # Next, ensure the genre exists or add a new one
-        cursor.execute("SELECT genre_id FROM Genres WHERE genre = ?", (data['genre'],))
-        genre_row = cursor.fetchone()
-        if genre_row:
-            genre_id = genre_row[0]
-            # Update category if provided
-            if 'category' in data:
-                cursor.execute("UPDATE Genres SET category = ? WHERE genre_id = ?", 
-                              (data['category'], genre_id))
-        else:
-            cursor.execute("INSERT INTO Genres (genre, category) VALUES (?, ?)", 
-                          (data['genre'], data.get('category')))
-            genre_id = cursor.lastrowid
-        
-        # Update the book data
-        # Update the book data
-        cursor.execute("""
-        UPDATE Books    
-        SET title = ?, author_id = ?, genre_id = ?, page_count = ?, publication_year = ?
-        WHERE book_id = ?
-        """, (data['title'], author_id, genre_id, data.get('page_count'), data.get('publication_year'), book_id))
-        
-        # Update the priority in the TBR list
-        if 'priority' in data:
-            cursor.execute("""
-            UPDATE TBRlist 
-            SET priority = ? 
-            WHERE book_id = ?
-            """, (data['priority'], book_id))
-        
-        conn.commit()
-        conn.close()
-        
-        return jsonify({"success": True, "message": f"Book with ID {book_id} updated successfully."})
+        return jsonify({"success": success, "message": f"Book with ID {book_id} updated successfully."})
     except Exception as e:
         print(f"Error updating book: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -609,7 +697,8 @@ def api_update_book(book_id):
 @app.route('/api/settings', methods=['GET'])
 def api_get_settings():
     try:
-        settings = get_user_settings()
+        # Using ORM for simple query
+        settings = get_user_settings_orm()
         return jsonify(settings)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -618,19 +707,17 @@ def api_get_settings():
 def api_update_settings():
     try:
         data = request.json
-        success = update_user_settings(data)
+        # Using ORM for update
+        success = update_user_settings_orm(data)
         return jsonify({"success": success})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-if __name__ == '__main__':
-    app.run(debug=True, port=5001, host='0.0.0.0')
-
 @app.route('/api/export', methods=['GET'])
 def api_export_data():
     try:
-        # Get all book data
-        books = get_tbr_list()
+        # Get all book data using prepared statements (complex join)
+        books = get_tbr_list_prepared()
         
         # Create a formatted text output
         formatted_output = "MY READING JOURNAL\n"
@@ -638,113 +725,269 @@ def api_export_data():
         formatted_output += f"Exported on: {datetime.datetime.now().strftime('%B %d, %Y at %I:%M %p')}\n\n"
         
         # Group books by status
-        status_groups = {}
+        # Continuing from the export API endpoint...
+        formatted_output = "MY READING JOURNAL\n"
+        formatted_output += "=================\n\n"
+        formatted_output += f"Exported on: {datetime.datetime.now().strftime('%B %d, %Y at %I:%M %p')}\n\n"
+        
+        # Group books by status
+        books_by_status = {}
         for book in books:
             status = book['status']
-            if status not in status_groups:
-                status_groups[status] = []
-            status_groups[status].append(book)
+            if status not in books_by_status:
+                books_by_status[status] = []
+            books_by_status[status].append(book)
         
-        # Add each status section
-        for status, book_list in status_groups.items():
-            formatted_output += f"## {status.upper()} ({len(book_list)} books)\n\n"
+        # Format each status section
+        for status, status_books in books_by_status.items():
+            formatted_output += f"== {status.upper()} BOOKS ({len(status_books)}) ==\n\n"
             
-            for book in book_list:
-                # Book title and author
-                formatted_output += f"* {book['title']} by {book['author']}\n"
-                
-                # Book details indented
-                if book['genre']:
-                    formatted_output += f"  - Genre: {book['genre']}"
-                    if book['category']:
-                        formatted_output += f" ({book['category']})"
-                    formatted_output += "\n"
-                
-                if book['priority']:
-                    priority_text = "★" * book['priority']
-                    formatted_output += f"  - Priority: {priority_text}\n"
+            for book in status_books:
+                formatted_output += f"Title: {book['title']}\n"
+                formatted_output += f"Author: {book['author']}\n"
+                formatted_output += f"Genre: {book['genre']}"
+                if book['category']:
+                    formatted_output += f" ({book['category']})"
+                formatted_output += "\n"
                 
                 if book['page_count']:
-                    formatted_output += f"  - Pages: {book['page_count']}\n"
-                
+                    formatted_output += f"Pages: {book['page_count']}\n"
                 if book['publication_year']:
-                    formatted_output += f"  - Published: {book['publication_year']}\n"
+                    formatted_output += f"Published: {book['publication_year']}\n"
+                if book['rating']:
+                    formatted_output += f"Rating: {book['rating']}/5\n"
                 
-                if book['rating'] and book['rating'] > 0:
-                    rating_text = "★" * book['rating']
-                    formatted_output += f"  - Rating: {rating_text}\n"
-                
-                if book['date_added']:
-                    formatted_output += f"  - Added on: {book['date_added']}\n"
+                formatted_output += f"Priority: {book['priority']}/10\n"
+                formatted_output += f"Added: {book['date_added']}\n"
                 
                 if book['date_completed']:
-                    formatted_output += f"  - Completed on: {book['date_completed']}\n"
+                    formatted_output += f"Completed: {book['date_completed']}\n"
                 
                 formatted_output += "\n"
             
             formatted_output += "\n"
         
-        # Add a footer with some stats
-        formatted_output += "READING STATS\n"
-        formatted_output += "=============\n\n"
-        total_books = len(books)
-        completed_books = len([b for b in books if b['status'] == 'Completed'])
-        reading_books = len([b for b in books if b['status'] == 'Reading'])
-        tbr_books = len([b for b in books if b['status'] == 'To Read'])
-        
-        formatted_output += f"Total books: {total_books}\n"
-        formatted_output += f"Completed: {completed_books}\n"
-        formatted_output += f"Currently reading: {reading_books}\n"
-        formatted_output += f"To be read: {tbr_books}\n\n"
-        
-        if completed_books > 0:
-            avg_rating = sum(b['rating'] or 0 for b in books if b['status'] == 'Completed') / completed_books
-            formatted_output += f"Average rating for completed books: {avg_rating:.1f} stars\n"
-        
-        # Add a note about importing
-        formatted_output += "\n---\n"
-        formatted_output += "Note: This file is meant for human readability. "
-        formatted_output += "To import this data back into the app, you'll need to use the original JSON export.\n"
-        
-        # Create the response with the formatted text
-        response = app.response_class(
-            response=formatted_output,
-            status=200,
-            mimetype='text/plain'
-        )
-        return response
+        return jsonify({
+            "success": True, 
+            "data": formatted_output,
+            "filename": f"reading_journal_{datetime.datetime.now().strftime('%Y%m%d')}.txt"
+        })
     except Exception as e:
         print(f"Error exporting data: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/import', methods=['POST'])
-def api_import_data():
+@app.route('/api/goal', methods=['POST'])
+def api_create_goal():
     try:
-        # Get the uploaded file from the request
-        if 'file' not in request.files:
-            return jsonify({"error": "No file provided"}), 400
+        data = request.json
         
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({"error": "No file selected"}), 400
-            
-        # Read the file content
-        content = file.read().decode('utf-8')
+        # Using prepared statements for goal creation
+        goal_id = create_reading_goal_prepared(
+            goal_type=data['goal_type'],
+            target_value=data.get('target_value'),
+            target_book_id=data.get('target_book_id'),
+            target_genre_id=data.get('target_genre_id'),
+            start_date=data.get('start_date'),
+            end_date=data.get('end_date'),
+            reminder_frequency=data.get('reminder_frequency', 'weekly')
+        )
         
-        # Parse the formatted text back into book data
-        imported_books = parse_exported_text(content)
+        return jsonify({"success": True, "goal_id": goal_id})
+    except Exception as e:
+        print(f"Error creating reading goal: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/goals', methods=['GET'])
+def api_get_goals():
+    try:
+        # Using prepared statements for complex goal query
+        goals = get_reading_goals_prepared()
+        return jsonify(goals)
+    except Exception as e:
+        print(f"Error retrieving reading goals: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/goal/<int:goal_id>', methods=['PUT'])
+def api_update_goal_progress(goal_id):
+    try:
+        data = request.json
         
-        # Save the imported books
-        save_result = save_imported_books(imported_books)
+        # Using prepared statements for goal update
+        success = update_goal_progress_prepared(
+            goal_id=goal_id,
+            progress=data.get('progress'),
+            completed=data.get('completed')
+        )
+        
+        return jsonify({"success": success})
+    except Exception as e:
+        print(f"Error updating goal progress: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/goal/<int:goal_id>', methods=['DELETE'])
+def api_delete_goal(goal_id):
+    try:
+        # Using prepared statements for goal deletion
+        success = delete_reading_goal_prepared(goal_id)
+        return jsonify({"success": success})
+    except Exception as e:
+        print(f"Error deleting reading goal: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/reminders', methods=['GET'])
+def api_check_reminders():
+    try:
+        # Using prepared statements to check for goal reminders
+        goals_needing_reminders = check_goal_reminders_prepared()
+        
+        reminder_messages = []
+        for goal in goals_needing_reminders:
+            message = {
+                "goal_id": goal['goal_id'],
+                "message": construct_reminder_message(goal)
+            }
+            reminder_messages.append(message)
         
         return jsonify({
             "success": True, 
-            "message": f"Successfully imported {len(imported_books)} books",
-            "details": save_result,
-            "books": imported_books
-        }), 200
-        
+            "has_reminders": len(reminder_messages) > 0,
+            "reminders": reminder_messages
+        })
     except Exception as e:
-        print(f"Error importing data: {str(e)}")
+        print(f"Error checking reminders: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+def construct_reminder_message(goal):
+    """Helper function to construct a reminder message based on goal type"""
+    days_remaining = 0
+    try:
+        end_date = datetime.datetime.strptime(goal['end_date'], "%Y-%m-%d")
+        today = datetime.datetime.now()
+        days_remaining = (end_date - today).days
+    except:
+        pass
+    
+    message = ""
+    
+    if goal['goal_type'] == 'book_count':
+        message = f"Reading Goal Reminder: You aimed to read {goal['target_value']} books. "
+        message += f"Current progress: {goal['progress']} books ({days_remaining} days remaining)."
+    
+    elif goal['goal_type'] == 'page_count':
+        message = f"Reading Goal Reminder: You aimed to read {goal['target_value']} pages. "
+        message += f"Current progress: {goal['progress']} pages ({days_remaining} days remaining)."
+    
+    elif goal['goal_type'] == 'specific_book' and goal.get('book_title'):
+        message = f"Reading Goal Reminder: You aimed to read '{goal['book_title']}'. "
+        message += f"({days_remaining} days remaining)."
+    
+    elif goal['goal_type'] == 'genre_focus' and goal.get('genre_name'):
+        message = f"Reading Goal Reminder: You aimed to focus on the {goal['genre_name']} genre. "
+        message += f"Current progress: {goal['progress']} books in this genre ({days_remaining} days remaining)."
+    
+    else:
+        message = f"Reading Goal Reminder: You have a goal that needs attention ({days_remaining} days remaining)."
+    
+    return message
+
+@app.route('/api/statistics', methods=['GET'])
+def api_get_statistics():
+    try:
+        conn = sqlite3.connect('tbrlist.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        stats = {}
+        
+        # Total books
+        cursor.execute("SELECT COUNT(*) as count FROM Books")
+        stats['total_books'] = cursor.fetchone()['count']
+        
+        # Books by status
+        cursor.execute("""
+            SELECT rs.status, COUNT(*) as count
+            FROM TBRlist t
+            JOIN [Reading Status] rs ON t.status_id = rs.status_id
+            GROUP BY t.status_id
+        """)
+        stats['status_counts'] = {row['status']: row['count'] for row in cursor.fetchall()}
+        
+        # Books by genre
+        cursor.execute("""
+            SELECT g.genre, COUNT(*) as count
+            FROM Books b
+            JOIN Genres g ON b.genre_id = g.genre_id
+            GROUP BY b.genre_id
+            ORDER BY count DESC
+        """)
+        stats['genre_counts'] = {row['genre']: row['count'] for row in cursor.fetchall()}
+        
+        # Average rating for completed books
+        cursor.execute("""
+            SELECT AVG(b.rating) as avg_rating
+            FROM Books b
+            JOIN TBRlist t ON b.book_id = t.book_id
+            WHERE t.status_id = 1 AND b.rating IS NOT NULL
+        """)
+        avg_rating = cursor.fetchone()['avg_rating']
+        stats['average_rating'] = round(avg_rating, 2) if avg_rating else 0
+        
+        # Reading pace (books completed per month in the last 6 months)
+        cursor.execute("""
+            SELECT strftime('%Y-%m', date_completed) as month, COUNT(*) as count
+            FROM TBRlist
+            WHERE date_completed IS NOT NULL
+            AND date_completed >= date('now', '-6 months')
+            GROUP BY month
+            ORDER BY month
+        """)
+        stats['monthly_completion'] = {row['month']: row['count'] for row in cursor.fetchall()}
+        
+        # Calculate average pages per book
+        cursor.execute("""
+            SELECT AVG(page_count) as avg_pages
+            FROM Books
+            WHERE page_count IS NOT NULL
+        """)
+        avg_pages = cursor.fetchone()['avg_pages']
+        stats['average_pages'] = round(avg_pages) if avg_pages else 0
+        
+        conn.close()
+        return jsonify(stats)
+    except Exception as e:
+        print(f"Error retrieving statistics: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/backup', methods=['GET'])
+def api_backup_database():
+    try:
+        # Create a timestamp for the backup file
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = os.path.join(base_dir, f"tbrlist_backup_{timestamp}.db")
+        
+        # Create a connection to the current database
+        src_conn = sqlite3.connect('tbrlist.db')
+        
+        # Create a new database file for the backup
+        dest_conn = sqlite3.connect(backup_path)
+        
+        # Copy the database contents
+        src_conn.backup(dest_conn)
+        
+        # Close connections
+        src_conn.close()
+        dest_conn.close()
+        
+        return jsonify({
+            "success": True,
+            "backup_file": f"tbrlist_backup_{timestamp}.db",
+            "message": "Database backed up successfully."
+        })
+    except Exception as e:
+        print(f"Error creating backup: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+# ================ Run the App ================
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5001)
