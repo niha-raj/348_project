@@ -64,6 +64,8 @@ function App() {
     }
   };
 
+  
+
   return (
     <SettingProvider> {/* Wrap the entire app with SettingProvider */}
       <div className="App">
