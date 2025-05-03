@@ -9,7 +9,6 @@ const ReadingGoals = () => {
   const [loading, setLoading] = useState(true);
   const [showNewGoalForm, setShowNewGoalForm] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: 'info' });
-  const [reminders, setReminders] = useState([]);
   
   const showNotification = useCallback((message, type = 'info') => {
     setNotification({ show: true, message, type });
@@ -22,7 +21,7 @@ const ReadingGoals = () => {
   const fetchGoals = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5001/api/goals');
+      const response = await fetch('http://localhost:5002/api/goals');
       if (response.ok) {
         const data = await response.json();
         setGoals(data);
@@ -38,29 +37,26 @@ const ReadingGoals = () => {
     }
   }, [showNotification]);
   
-  const checkReminders = useCallback(async () => {
-    try {
-      const response = await fetch('http://localhost:5001/api/goals/reminders');
-      if (response.ok) {
-        const data = await response.json();
-        if (data.reminders_count > 0) {
-          setReminders(data.reminders);
-        }
-      }
-    } catch (error) {
-      console.error('Error checking reminders:', error);
-    }
-  }, []);
-  
   // Fetch goals on component mount with proper dependencies
   useEffect(() => {
     fetchGoals();
-    checkReminders();
-  }, [fetchGoals, checkReminders]);
+  }, [fetchGoals]);
   
   const handleCreateGoal = async (goalData) => {
     try {
-      const response = await fetch('http://localhost:5001/api/goals', {
+      // Log the incoming data
+      console.log('Received goal data:', goalData);
+      
+      // Make sure all required fields are present
+      if (!goalData.goal_type || goalData.goal_type.trim() === '') {
+        console.error('Missing or empty goal_type:', goalData.goal_type);
+        showNotification('Goal type is required', 'error');
+        return;
+      }
+      
+      console.log('Sending validated goal data to API:', goalData);
+      
+      const response = await fetch('http://localhost:5002/api/goal', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -69,11 +65,21 @@ const ReadingGoals = () => {
       });
       
       if (response.ok) {
+        const result = await response.json();
+        console.log('Goal created successfully:', result);
         showNotification('Goal created successfully!', 'success');
         setShowNewGoalForm(false);
         fetchGoals();
       } else {
-        showNotification('Failed to create goal', 'error');
+        let errorMessage = 'Failed to create goal';
+        try {
+          const errorData = await response.json();
+          errorMessage = `Failed to create goal: ${errorData.error || 'Unknown error'}`;
+          console.error('Server error:', errorData);
+        } catch (e) {
+          console.error('Error parsing error response:', e);
+        }
+        showNotification(errorMessage, 'error');
       }
     } catch (error) {
       console.error('Error:', error);
@@ -83,7 +89,9 @@ const ReadingGoals = () => {
   
   const handleUpdateGoal = async (goalId, updates) => {
     try {
-      const response = await fetch(`http://localhost:5001/api/goals/${goalId}`, {
+      console.log(`Updating goal ${goalId} with:`, updates);
+      
+      const response = await fetch(`http://localhost:5002/api/goal/${goalId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -95,7 +103,15 @@ const ReadingGoals = () => {
         showNotification('Goal updated successfully!', 'success');
         fetchGoals();
       } else {
-        showNotification('Failed to update goal', 'error');
+        let errorMessage = 'Failed to update goal';
+        try {
+          const errorData = await response.json();
+          errorMessage = `Failed to update goal: ${errorData.error || 'Unknown error'}`;
+          console.error('Server error:', errorData);
+        } catch (e) {
+          console.error('Error parsing error response:', e);
+        }
+        showNotification(errorMessage, 'error');
       }
     } catch (error) {
       console.error('Error:', error);
@@ -105,7 +121,9 @@ const ReadingGoals = () => {
   
   const handleDeleteGoal = async (goalId) => {
     try {
-      const response = await fetch(`http://localhost:5001/api/goals/${goalId}`, {
+      console.log(`Deleting goal ${goalId}`);
+      
+      const response = await fetch(`http://localhost:5002/api/goal/${goalId}`, {
         method: 'DELETE',
       });
       
@@ -113,7 +131,15 @@ const ReadingGoals = () => {
         showNotification('Goal deleted successfully!', 'success');
         fetchGoals(); 
       } else {
-        showNotification('Failed to delete goal', 'error');
+        let errorMessage = 'Failed to delete goal';
+        try {
+          const errorData = await response.json();
+          errorMessage = `Failed to delete goal: ${errorData.error || 'Unknown error'}`;
+          console.error('Server error:', errorData);
+        } catch (e) {
+          console.error('Error parsing error response:', e);
+        }
+        showNotification(errorMessage, 'error');
       }
     } catch (error) {
       console.error('Error:', error);
@@ -132,37 +158,6 @@ const ReadingGoals = () => {
           {showNewGoalForm ? 'Cancel' : 'Create New Goal'}
         </button>
       </div>
-      
-      {/* Reminders Section */}
-      {reminders.length > 0 && (
-        <div className="reminders-container">
-          <h3>Reminders</h3>
-          <div className="reminders-list">
-            {reminders.map(reminder => (
-              <div className="reminder" key={reminder.goal_id}>
-                {reminder.goal_type === 'books' && 
-                  `Remember your goal to read ${reminder.target_value} books by ${reminder.end_date}. ` +
-                  `Current progress: ${reminder.progress} books (${
-                    Math.round((reminder.progress / reminder.target_value) * 100)
-                  }%).`
-                }
-                {reminder.goal_type === 'pages' && 
-                  `Remember your goal to read ${reminder.target_value} pages by ${reminder.end_date}. ` +
-                  `Current progress: ${reminder.progress} pages (${
-                    Math.round((reminder.progress / reminder.target_value) * 100)
-                  }%).`
-                }
-                {reminder.goal_type === 'specific_book' && 
-                  `Remember your goal to read "${reminder.book_title}" by ${reminder.end_date}.`
-                }
-                {reminder.goal_type === 'genre' && 
-                  `Remember your goal to focus on the "${reminder.genre_name}" genre by ${reminder.end_date}.`
-                }
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
       
       {/* Goal Summary */}
       {goals.length > 0 && (

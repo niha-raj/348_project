@@ -1,87 +1,90 @@
 import React, { useState, useEffect } from 'react';
+import { useSettingsContext } from './SettingsContext'; // Update the path as needed
+
+// Create a reusable ToggleSwitch component
+const ToggleSwitch = ({ id, label, description, isChecked, onChange }) => {
+  return (
+    <div className="settings-control toggle">
+      <div className="toggle-label">
+        <label htmlFor={id}>{label}</label>
+        {description && <span className="setting-description">{description}</span>}
+      </div>
+      <label className="toggle-switch">
+        <input 
+          id={id} 
+          type="checkbox"
+          checked={isChecked}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span className="toggle-slider"></span>
+      </label>
+    </div>
+  );
+};
 
 function Settings() {
-  const [theme, setTheme] = useState('light');
-  const [cardLayout, setCardLayout] = useState('grid');
-  const [showPriority, setShowPriority] = useState(true);
-  const [defaultSort, setDefaultSort] = useState('priority');
-  const [notifications, setNotifications] = useState(true);
-  const [autoBackup, setAutoBackup] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  // Get settings from context instead of managing local state
+  const { settings, updateSettings, isLoading: contextLoading } = useSettingsContext();
+  
+  // Local state for UI
   const [saveMessage, setSaveMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   
-  // Fetch settings when component mounts
+  // Local form state
+  const [formValues, setFormValues] = useState({
+    theme: 'light',
+    cardLayout: 'grid',
+    showPriority: true,
+    defaultSort: 'priority',
+    notifications: true,
+    autoBackup: false
+  });
+  
+  // Initialize form values from context when available
   useEffect(() => {
-    fetchSettings();
-  }, []);
+    if (!contextLoading) {
+      console.log('Settings component: Loading values from context', settings);
+      setFormValues({
+        theme: settings.theme,
+        cardLayout: settings.cardLayout,
+        showPriority: settings.showPriority,
+        defaultSort: settings.defaultSort,
+        notifications: settings.notifications,
+        autoBackup: settings.autoBackup
+      });
+    }
+  }, [settings, contextLoading]);
 
-  useEffect(() => {
-    // Remove any existing theme classes
-    document.body.classList.remove('theme-light', 'theme-dark', 'theme-sepia');
-    // Add the selected theme class
-    document.body.classList.add(`theme-${theme}`);
-  }, [theme]);  
-  
-  const fetchSettings = async () => {
+  // Handle form field changes
+  const handleFieldChange = (field, value) => {
+    setFormValues(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const saveSettings = async () => {
     try {
+      console.log('Settings component: Saving form values to context', formValues);
       setIsLoading(true);
-      const response = await fetch('http://localhost:5001/api/settings');
-      const data = await response.json();
       
-      if (response.ok) {
-        setTheme(data.theme || 'light');
-        setCardLayout(data.card_layout || 'grid');
-        setShowPriority(Boolean(data.show_priority));
-        setDefaultSort(data.default_sort || 'priority');
-        setNotifications(Boolean(data.notifications));
-        setAutoBackup(Boolean(data.auto_backup));
-      } else {
-        console.error('Error fetching settings:', data.error);
-      }
+      // Update context with form values
+      await updateSettings(formValues);
+      
+      setSaveMessage('Settings saved successfully! Layout changes will apply on your next visit to the book list.');
+      setTimeout(() => setSaveMessage(''), 4000);
     } catch (error) {
-      console.error('Error fetching settings:', error);
+      console.error('Error saving settings:', error);
+      setSaveMessage('Error saving settings. Please try again.');
+      setTimeout(() => setSaveMessage(''), 3000);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const saveSettings = async () => {
-    try {
-      const response = await fetch('http://localhost:5001/api/settings', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          theme,
-          card_layout: cardLayout, // Make sure to use the correct API field name
-          show_priority: showPriority,
-          default_sort: defaultSort,
-          notifications,
-          auto_backup: autoBackup
-        })
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        setSaveMessage('Settings saved successfully! Layout changes will apply on your next visit to the book list.');
-        setTimeout(() => setSaveMessage(''), 4000);
-      } else {
-        console.error('Error saving settings:', data.error);
-        setSaveMessage('Error saving settings. Please try again.');
-        setTimeout(() => setSaveMessage(''), 3000);
-      }
-    } catch (error) {
-      console.error('Error saving settings:', error);
-      setSaveMessage('Error saving settings. Please try again.');
-      setTimeout(() => setSaveMessage(''), 3000);
-    }
-  };
-
   const exportReadingList = async () => {
     try {
-      const response = await fetch('http://localhost:5001/api/export');
+      const response = await fetch('http://localhost:5002/api/export');
       
       if (response.ok) {
         // Get the text content directly
@@ -134,7 +137,7 @@ function Settings() {
             const formData = new FormData();
             formData.append('file', file);
             
-            const response = await fetch('http://localhost:5001/api/import', {
+            const response = await fetch('http://localhost:5002/api/import', {
               method: 'POST',
               body: formData // Send the file as FormData
             });
@@ -159,7 +162,7 @@ function Settings() {
     input.click();
   };
 
-  if (isLoading) {
+  if (contextLoading) {
     return <div className="loading">Loading settings...</div>;
   }
 
@@ -195,8 +198,8 @@ function Settings() {
               <div className="select-wrapper">
                 <select 
                   id="theme-select"
-                  value={theme}
-                  onChange={(e) => setTheme(e.target.value)}
+                  value={formValues.theme}
+                  onChange={(e) => handleFieldChange('theme', e.target.value)}
                   className="settings-select"
                 >
                   <option value="light">Light</option>
@@ -213,34 +216,27 @@ function Settings() {
               <div className="select-wrapper">
                 <select 
                   id="layout-select"
-                  value={cardLayout}
-                  onChange={(e) => setCardLayout(e.target.value)}
+                  value={formValues.cardLayout}
+                  onChange={(e) => handleFieldChange('cardLayout', e.target.value)}
                   className="settings-select"
                 >
                   <option value="grid">Grid Cards</option>
                   <option value="list">List View</option>
                 </select>
               </div>
-              <p className="setting-hint">This setting controls how books are displayed throughout the app</p>
+              <span className="setting-description">This setting controls how books are displayed throughout the app</span>
             </div>
             
             <div className="divider"></div>
             
-            <div className="settings-control toggle">
-              <div className="toggle-label">
-                <label htmlFor="show-priority">Show Priority Badges</label>
-                <span className="setting-description">Display priority indicators on book cards</span>
-              </div>
-              <div className="toggle-switch">
-                <input 
-                  id="show-priority" 
-                  type="checkbox"
-                  checked={showPriority}
-                  onChange={(e) => setShowPriority(e.target.checked)}
-                />
-                <span className="toggle-slider"></span>
-              </div>
-            </div>
+            {/* Using the ToggleSwitch component instead of direct HTML */}
+            <ToggleSwitch
+              id="show-priority"
+              label="Show Priority Badges"
+              description="Display priority indicators on book cards"
+              isChecked={formValues.showPriority}
+              onChange={(checked) => handleFieldChange('showPriority', checked)}
+            />
           </div>
         </div>
 
@@ -265,60 +261,45 @@ function Settings() {
           
           <div className="settings-card-body">
             <div className="settings-control">
-              <label htmlFor="default-sort">Default Sort Order</label>
+              <label htmlFor="sort-select">Default Sort</label>
               <div className="select-wrapper">
                 <select 
-                  id="default-sort"
-                  value={defaultSort}
-                  onChange={(e) => setDefaultSort(e.target.value)}
+                  id="sort-select"
+                  value={formValues.defaultSort}
+                  onChange={(e) => handleFieldChange('defaultSort', e.target.value)}
                   className="settings-select"
                 >
                   <option value="priority">Priority</option>
                   <option value="title">Title</option>
                   <option value="author">Author</option>
-                  <option value="added">Date Added</option>
+                  <option value="date_added">Date Added</option>
                 </select>
               </div>
+              <span className="setting-description">This controls the default order of your reading list</span>
             </div>
             
             <div className="divider"></div>
             
-            <div className="settings-control toggle">
-              <div className="toggle-label">
-                <label htmlFor="notifications">Reading Reminders</label>
-                <span className="setting-description">Receive notifications about your reading goals</span>
-              </div>
-              <div className="toggle-switch">
-                <input 
-                  id="notifications" 
-                  type="checkbox"
-                  checked={notifications}
-                  onChange={(e) => setNotifications(e.target.checked)}
-                />
-                <span className="toggle-slider"></span>
-              </div>
-            </div>
+            <ToggleSwitch
+              id="notifications"
+              label="Notifications"
+              description="Receive reminders for reading goals"
+              isChecked={formValues.notifications}
+              onChange={(checked) => handleFieldChange('notifications', checked)}
+            />
             
             <div className="divider"></div>
             
-            <div className="settings-control toggle">
-              <div className="toggle-label">
-                <label htmlFor="auto-backup">Automatic Backup</label>
-                <span className="setting-description">Backup your reading list automatically</span>
-              </div>
-              <div className="toggle-switch">
-                <input 
-                  id="auto-backup" 
-                  type="checkbox"
-                  checked={autoBackup}
-                  onChange={(e) => setAutoBackup(e.target.checked)}
-                />
-                <span className="toggle-slider"></span>
-              </div>
-            </div>
+            <ToggleSwitch
+              id="auto-backup"
+              label="Automatic Backup"
+              description="Back up your reading list daily"
+              isChecked={formValues.autoBackup}
+              onChange={(checked) => handleFieldChange('autoBackup', checked)}
+            />
           </div>
         </div>
-
+        
         {/* Data Management Section */}
         <div className="settings-card wide">
           <div className="settings-card-header">
@@ -333,56 +314,51 @@ function Settings() {
           </div>
           
           <div className="settings-card-body">
-            <p className="settings-description">
-              Export your reading list for backup or import a previously saved list.
-            </p>
-            
             <div className="settings-actions-row">
-              <button className="settings-btn export-btn" onClick={exportReadingList}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="7 10 12 15 17 10"></polyline>
-                  <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
-                Export Reading List
-              </button>
-              <button className="settings-btn import-btn" onClick={importReadingList}>
+              <button className="settings-btn export-btn" onClick={exportReadingList} disabled={isLoading}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="17 8 12 3 7 8"></polyline>
                   <line x1="12" y1="3" x2="12" y2="15"></line>
                 </svg>
+                Export Reading List
+              </button>
+            </div>
+            <span className="setting-description">Download your reading list as a text file</span>
+            
+            <div className="divider"></div>
+            
+            <div className="settings-actions-row">
+              <button className="settings-btn import-btn" onClick={importReadingList} disabled={isLoading}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
                 Import Reading List
               </button>
             </div>
-            
             <div className="settings-warning">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
                 <line x1="12" y1="9" x2="12" y2="13"></line>
                 <line x1="12" y1="17" x2="12.01" y2="17"></line>
               </svg>
-              <span>Importing a list will replace your current reading list</span>
+              This will merge with your existing reading list
             </div>
           </div>
         </div>
       </div>
       
       <div className="settings-footer">
-        <button className="primary-btn save-settings-btn" onClick={saveSettings}>
-          Save Settings
+        <button 
+          className="primary-btn save-settings-btn" 
+          onClick={saveSettings} 
+          disabled={isLoading}
+        >
+          {isLoading ? 'Saving...' : 'Save Settings'}
         </button>
       </div>
-
-      {/* Add a small CSS style for the setting hint */}
-      <style jsx>{`
-        .setting-hint {
-          font-size: var(--font-size-sm);
-          color: var(--text-light);
-          margin-top: var(--spacing-xs);
-          font-style: italic;
-        }
-      `}</style>
     </div>
   );
 }

@@ -24,7 +24,21 @@ export const SettingProvider = ({ children }) => {
     if (savedTheme) {
       applyTheme(savedTheme);
     }
+    
+    // Listen for settings update events from other components
+    window.addEventListener('settingsUpdated', handleSettingsUpdateEvent);
+    
+    return () => {
+      window.removeEventListener('settingsUpdated', handleSettingsUpdateEvent);
+    };
   }, []);
+
+  // Handle settings update events from other components (like the Settings page)
+  const handleSettingsUpdateEvent = (event) => {
+    console.log('SettingsContext: Received settingsUpdated event', event.detail);
+    // Trigger a refresh of settings from server
+    fetchSettings();
+  };
 
   // Update body class when theme changes
   useEffect(() => {
@@ -44,17 +58,21 @@ export const SettingProvider = ({ children }) => {
   const fetchSettings = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('http://localhost:5001/api/settings');
+      const response = await fetch('http://localhost:5002/api/settings');
       const data = await response.json();
       
       if (response.ok) {
+        console.log('SettingsContext: Fetched settings from server:', data);
+        
+        // Be more careful with boolean conversions - use explicit checks
         setSettings({
           theme: data.theme || 'light',
           cardLayout: data.card_layout || 'grid',
-          showPriority: Boolean(data.show_priority),
+          // Use explicit undefined checks to handle falsy values properly
+          showPriority: data.show_priority === undefined ? true : Boolean(data.show_priority),
           defaultSort: data.default_sort || 'priority',
-          notifications: Boolean(data.notifications),
-          autoBackup: Boolean(data.auto_backup)
+          notifications: data.notifications === undefined ? true : Boolean(data.notifications),
+          autoBackup: data.auto_backup === undefined ? false : Boolean(data.auto_backup)
         });
       } else {
         console.error('Error fetching settings:', data.error);
@@ -67,34 +85,61 @@ export const SettingProvider = ({ children }) => {
   };
 
   const updateSettings = async (newSettings) => {
+    // Log what's being updated
+    console.log('SettingsContext: Updating settings with:', newSettings);
+    console.log('SettingsContext: Current settings before update:', settings);
+    
     // Update local state immediately for responsive UI
-    setSettings(prevSettings => ({ ...prevSettings, ...newSettings }));
+    setSettings(prevSettings => {
+      const updatedSettings = { ...prevSettings, ...newSettings };
+      console.log('SettingsContext: Settings after update:', updatedSettings);
+      return updatedSettings;
+    });
     
     // Save to server
     try {
-      const response = await fetch('http://localhost:5001/api/settings', {
+      // Create a payload that matches the server's expected format
+      const payload = {
+        theme: newSettings.theme !== undefined ? newSettings.theme : settings.theme,
+        card_layout: newSettings.cardLayout !== undefined ? newSettings.cardLayout : settings.cardLayout,
+        show_priority: newSettings.showPriority !== undefined ? newSettings.showPriority : settings.showPriority,
+        default_sort: newSettings.defaultSort !== undefined ? newSettings.defaultSort : settings.defaultSort,
+        notifications: newSettings.notifications !== undefined ? newSettings.notifications : settings.notifications,
+        auto_backup: newSettings.autoBackup !== undefined ? newSettings.autoBackup : settings.autoBackup
+      };
+      
+      console.log('SettingsContext: Sending settings to server:', payload);
+      
+      const response = await fetch('http://localhost:5002/api/settings', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          theme: newSettings.theme !== undefined ? newSettings.theme : settings.theme,
-          card_layout: newSettings.cardLayout !== undefined ? newSettings.cardLayout : settings.cardLayout,
-          show_priority: newSettings.showPriority !== undefined ? newSettings.showPriority : settings.showPriority,
-          default_sort: newSettings.defaultSort !== undefined ? newSettings.defaultSort : settings.defaultSort,
-          notifications: newSettings.notifications !== undefined ? newSettings.notifications : settings.notifications,
-          auto_backup: newSettings.autoBackup !== undefined ? newSettings.autoBackup : settings.autoBackup
-        })
+        body: JSON.stringify(payload)
       });
       
-      if (!response.ok) {
-        const data = await response.json();
+      const data = await response.json();
+      
+      if (response.ok) {
+        console.log('SettingsContext: Server settings updated successfully:', data);
+        
+        // Re-fetch settings from server to ensure consistency
+        fetchSettings();
+        
+        // Dispatch an event for other components that might be using the settings
+        const event = new CustomEvent('settingsUpdated', {
+          detail: { ...settings, ...newSettings }
+        });
+        window.dispatchEvent(event);
+      } else {
         console.error('Error saving settings:', data.error);
-        // Could revert changes here if needed
+        // Revert changes by re-fetching
+        fetchSettings();
       }
     } catch (error) {
       console.error('Error saving settings:', error);
-      // Could revert changes here if needed
+      // Revert changes by re-fetching
+      fetchSettings();
     }
   };
 

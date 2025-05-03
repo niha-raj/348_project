@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import BookCard from './BookCard';
 import { AddBookModal, EditBookModal, DeleteConfirmModal } from './BookModal';
@@ -10,7 +10,7 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
     title: '',
     author_name: '',
     genre: '',
-    category: 'Fiction', 
+    category: 'Fiction',
     publication_year: '',
     page_count: '',
     priority: 5
@@ -30,16 +30,16 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
   });
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('priority');
+  const [defaultSort, setDefaultSort] = useState('priority');
+  const [userChangedSort, setUserChangedSort] = useState(false);
   const [cardLayout, setCardLayout] = useState('grid');
-  // Add reminders state
-  const [reminders, setReminders] = useState([]);
+  const [settingsUpdated, setSettingsUpdated] = useState(false);
 
-  const API_URL = 'http://localhost:5001/api';
+  const API_URL = 'http://localhost:5002/api';
 
   const fetchBooks = async () => {
     try {
       const booksRes = await axios.get(`${API_URL}/tbr`);
-      console.log('Books fetched:', booksRes.data);
       setBooks(booksRes.data);
     } catch (error) {
       console.error('Error fetching books:', error);
@@ -50,13 +50,22 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
     try {
       const response = await fetch(`${API_URL}/settings`);
       const data = await response.json();
-      
+
       if (response.ok) {
         setCardLayout(data.card_layout || 'grid');
-        
+
         if (data.default_sort) {
-          setSort(data.default_sort);
+          let mappedSort = data.default_sort;
+          if (data.default_sort === 'date_added') {
+            mappedSort = 'added';
+          }
+          setDefaultSort(mappedSort);
+          if (!userChangedSort) {
+            setSort(mappedSort);
+          }
         }
+
+        setSettingsUpdated(false);
       } else {
         console.error('Error fetching settings:', data.error);
       }
@@ -64,21 +73,6 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
       console.error('Error fetching settings:', error);
     }
   };
-
-  // Add function to check reminders
-  const checkReminders = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_URL}/goals/reminders`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.reminders_count > 0) {
-          setReminders(data.reminders);
-        }
-      }
-    } catch (error) {
-      console.error('Error checking reminders:', error);
-    }
-  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -88,14 +82,10 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
           axios.get(`${API_URL}/statuses`)
         ]);
 
-        console.log('Initial books fetch:', booksRes.data);
         setBooks(booksRes.data);
         setStatuses(statusesRes.data);
-        
+
         await fetchSettings();
-        // Call checkReminders to get reading goal reminders
-        await checkReminders();
-        
         setLoading(false);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -104,7 +94,22 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
     };
 
     fetchData();
-  }, [setBooks, checkReminders]);
+  }, [setBooks]);
+
+  useEffect(() => {
+    if (settingsUpdated) {
+      fetchSettings();
+    }
+
+    const handleSettingsUpdate = () => {
+      setSettingsUpdated(true);
+    };
+
+    window.addEventListener('settingsUpdated', handleSettingsUpdate);
+    return () => {
+      window.removeEventListener('settingsUpdated', handleSettingsUpdate);
+    };
+  }, [settingsUpdated]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -114,6 +119,16 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
   const handleEditInputChange = (e) => {
     const { name, value } = e.target;
     setEditFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSortChange = (e) => {
+    setSort(e.target.value);
+    setUserChangedSort(true);
+  };
+
+  const resetToDefaultSort = () => {
+    setSort(defaultSort);
+    setUserChangedSort(false);
   };
 
   const handleAddBook = async (e) => {
@@ -156,8 +171,6 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
     try {
       await axios.put(`${API_URL}/status`, { tbr_id: tbrId, status_id: statusId });
       await fetchBooks();
-      // Re-check reminders after status change as it might affect reading goals
-      await checkReminders();
     } catch (error) {
       console.error('Error updating status:', error);
     }
@@ -165,24 +178,19 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
 
   const handleRatingChange = async (tbrId, newRating) => {
     try {
-      console.log(`Updating rating for book ${tbrId} to ${newRating}`);
-      
-      const response = await axios.put(`${API_URL}/rating`, { 
-        tbr_id: tbrId, 
-        rating: newRating 
+      const response = await axios.put(`${API_URL}/rating`, {
+        tbr_id: tbrId,
+        rating: newRating
       });
-      
+
       if (response.data.success) {
-        console.log('Rating update successful, refreshing books');
-        
-        setBooks(prevBooks => 
-          prevBooks.map(book => 
-            book.tbr_id === tbrId 
-              ? { ...book, rating: newRating } 
+        setBooks(prevBooks =>
+          prevBooks.map(book =>
+            book.tbr_id === tbrId
+              ? { ...book, rating: newRating }
               : book
           )
         );
-        
         await fetchBooks();
       } else {
         console.error('Failed to update rating:', response.data.message);
@@ -215,7 +223,6 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
   const confirmDelete = async () => {
     try {
       const response = await axios.delete(`${API_URL}/book/${bookToDelete.book_id}`);
-      
       if (response.data.success) {
         await fetchBooks();
         setIsDeleting(false);
@@ -265,6 +272,12 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
     if (sort === 'priority') return (b.priority || 0) - (a.priority || 0);
     if (sort === 'title') return a.title.localeCompare(b.title);
     if (sort === 'author') return a.author.localeCompare(b.author);
+    if (sort === 'added') {
+      if (a.date_added && b.date_added) {
+        return new Date(b.date_added) - new Date(a.date_added);
+      }
+      return 0;
+    }
     return 0;
   });
 
@@ -274,38 +287,6 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
 
   return (
     <div className="tbr-list-container">
-      {/* Reminders Section */}
-      {reminders.length > 0 && (
-        <div className="reminders-container">
-          <h3>Reading Goal Reminders</h3>
-          <div className="reminders-list">
-            {reminders.map(reminder => (
-              <div className="reminder" key={reminder.goal_id}>
-                {reminder.goal_type === 'books' && 
-                  `Remember your goal to read ${reminder.target_value} books by ${reminder.end_date}. ` +
-                  `Current progress: ${reminder.progress} books (${
-                    Math.round((reminder.progress / reminder.target_value) * 100)
-                  }%).`
-                }
-                {reminder.goal_type === 'pages' && 
-                  `Remember your goal to read ${reminder.target_value} pages by ${reminder.end_date}. ` +
-                  `Current progress: ${reminder.progress} pages (${
-                    Math.round((reminder.progress / reminder.target_value) * 100)
-                  }%).`
-                }
-                {reminder.goal_type === 'specific_book' && 
-                  `Remember your goal to read "${reminder.book_title}" by ${reminder.end_date}.`
-                }
-                {reminder.goal_type === 'genre' && 
-                  `Remember your goal to focus on the "${reminder.genre_name}" genre by ${reminder.end_date}.`
-                }
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Filters and Sorting Controls */}
       <div className="list-controls">
         <div className="left-controls">
           <div className="filter-container">
@@ -319,19 +300,28 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
               ))}
             </select>
           </div>
-          
+
           <div className="sort-container">
             <label>Sort by:</label>
-            <select value={sort} onChange={(e) => setSort(e.target.value)}>
+            <select value={sort} onChange={handleSortChange}>
               <option value="priority">Priority</option>
               <option value="title">Title</option>
               <option value="author">Author</option>
+              <option value="added">Date Added</option>
             </select>
+            {userChangedSort && sort !== defaultSort && (
+              <button
+                className="reset-sort-btn"
+                onClick={resetToDefaultSort}
+                title={`Reset to default sort (${defaultSort})`}
+              >
+                Reset
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Book List */}
       <div className={`book-list-${cardLayout}`}>
         {sortedBooks.length === 0 ? (
           <div className="empty-list">
@@ -340,8 +330,8 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
           </div>
         ) : (
           sortedBooks.map((book) => (
-            <BookCard 
-              key={book.tbr_id} 
+            <BookCard
+              key={book.tbr_id}
               book={book}
               layout={cardLayout}
               statuses={statuses}
@@ -354,7 +344,6 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
         )}
       </div>
 
-      {/* Add Book Modal */}
       <AddBookModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -363,21 +352,19 @@ function TBRList({ isModalOpen, setIsModalOpen, books, setBooks }) {
         onSubmit={handleAddBook}
       />
 
-      {/* Edit Book Modal */}
       <EditBookModal
         isOpen={isEditing}
-        onClose={() => {setIsEditing(false); setBookToEdit(null);}}
+        onClose={() => { setIsEditing(false); setBookToEdit(null); }}
         bookData={editFormData}
         onInputChange={handleEditInputChange}
         onSubmit={handleUpdateBook}
       />
 
-      {/* Delete Confirmation Modal */}
       <DeleteConfirmModal
         isOpen={isDeleting}
         book={bookToDelete}
         onConfirm={confirmDelete}
-        onCancel={() => {setIsDeleting(false); setBookToDelete(null);}}
+        onCancel={() => { setIsDeleting(false); setBookToDelete(null); }}
       />
     </div>
   );
