@@ -226,8 +226,11 @@ def update_user_settings_orm(settings_data):
         # Update settings from dictionary
         if 'theme' in settings_data:
             settings.theme = settings_data['theme']
+        # Check for both cardLayout (frontend) and card_layout (backend) keys
         if 'cardLayout' in settings_data:
             settings.card_layout = settings_data['cardLayout']
+        elif 'card_layout' in settings_data:
+            settings.card_layout = settings_data['card_layout']
         if 'show_priority' in settings_data:
             settings.show_priority = 1 if settings_data['show_priority'] else 0
         if 'default_sort' in settings_data:

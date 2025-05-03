@@ -414,7 +414,7 @@ body {
 /* TBR List */
 .book-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: var(--spacing-md);
   margin-top: var(--spacing-md);
 }
@@ -551,6 +551,186 @@ book-card.completed {
   padding-top: var(--spacing-xs);
 }
 
+/* List View Styles */
+.book-card-list {
+  display: flex;
+  background-color: var(--paper);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  margin-bottom: var(--spacing-md);
+  transition: var(--transition);
+  position: relative;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.book-card-list:hover {
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+  border-color: var(--border-dark);
+}
+
+.book-card-list.completed {
+  background-color: rgba(129, 199, 132, 0.1);
+}
+
+.book-status-indicator-list {
+  width: 8px;
+  height: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+}
+
+.book-content-list {
+  display: flex;
+  flex: 1;
+  padding: var(--spacing-md);
+  padding-left: calc(var(--spacing-md) + 8px);
+  justify-content: space-between;
+}
+
+.book-header-list {
+  flex: 2;
+  padding-right: var(--spacing-md);
+  position: relative;
+}
+
+.book-header-list .book-title {
+  font-family: var(--font-title);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  margin-bottom: var(--spacing-xs);
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.book-header-list .book-author {
+  font-style: italic;
+  color: var(--text-light);
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-size);
+}
+
+.book-header-list .book-genre {
+  display: inline-block;
+  background-color: var(--primary-light);
+  color: var(--primary-dark);
+  padding: 3px var(--spacing-sm);
+  border-radius: 20px;
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--spacing-sm);
+  font-weight: 500;
+}
+
+.book-metadata {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-sm);
+  color: var(--text-light);
+  font-size: var(--font-size-sm);
+}
+
+.book-controls-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  min-width: 220px;
+}
+
+/* Remove priority badge from controls since we moved it to the header */
+.book-controls-list .priority-badge-list {
+  display: none;
+}
+
+.priority-badge-list {
+  padding: 4px var(--spacing-sm);
+  border-radius: 12px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: white;
+  text-align: center;
+  margin-bottom: var(--spacing-xs);
+  display: inline-block;
+}
+
+.status-selector-list select {
+  padding: 6px var(--spacing-sm);
+  border-radius: var(--radius);
+  border: none;
+  font-size: var(--font-size-sm);
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  width: 100%;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 30px;
+  margin-bottom: var(--spacing-sm);
+}
+
+.status-selector-list select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4);
+}
+
+.card-buttons-list {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+}
+
+.card-buttons-list button {
+  padding: 6px var(--spacing-sm);
+  border-radius: var(--radius);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: var(--transition);
+  border: none;
+  font-weight: 500;
+}
+
+.card-buttons-list .edit-btn {
+  background-color: var(--primary-light);
+  color: var(--primary-dark);
+}
+
+.card-buttons-list .edit-btn:hover {
+  background-color: var(--primary);
+  color: white;
+}
+
+.card-buttons-list .delete-btn {
+  background-color: var(--error-light);
+  color: var(--error);
+}
+
+.card-buttons-list .delete-btn:hover {
+  background-color: var(--error);
+  color: white;
+}
+
+/* Responsive adjustments for list view */
+@media (max-width: 768px) {
+  .book-content-list {
+    flex-direction: column;
+  }
+  
+  .book-controls-list {
+    width: 100%;
+    align-items: flex-start;
+    margin-top: var(--spacing-md);
+  }
+  
+  .book-header-list {
+    padding-right: 0;
+  }
+}
 /* Priority badge styling */
 .priority-badge {
   padding: 3px var(--spacing-sm);

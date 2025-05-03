@@ -155,6 +155,12 @@ function BookCard({ book, layout = 'grid', statuses, onStatusChange, onEditClick
       
       <div className="book-content-list">
         <div className="book-header-list">
+          <div 
+            className="priority-badge-list"
+            style={{ backgroundColor: priorityInfo.color }}
+          >
+            {priorityInfo.label} 
+          </div>
           <h3 className="book-title">{book.title}</h3>
           <p className="book-author">by {book.author}</p>
           <p className="book-genre">{book.genre}</p>
@@ -166,13 +172,6 @@ function BookCard({ book, layout = 'grid', statuses, onStatusChange, onEditClick
         </div>
         
         <div className="book-controls-list">
-          <div 
-            className="priority-badge-list"
-            style={{ backgroundColor: priorityInfo.color }}
-          >
-            {priorityInfo.label} Priority
-          </div>
-          
           <div className="book-rating">
             <StarRating 
               initialRating={Number(book.rating) || 0} 
