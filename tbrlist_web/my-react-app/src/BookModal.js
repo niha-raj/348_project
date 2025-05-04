@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 // AddBookModal component
 function AddBookModal({ isOpen, onClose, bookData, onInputChange, onSubmit }) {
   if (!isOpen) return null;
